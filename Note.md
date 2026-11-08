@@ -19,17 +19,19 @@ flowchart TD
         D2["⏳ Slow Hashing<br/><i>bcrypt / Argon2</i>"]
         D3["🔒 Account Lockout<br/><i>Threshold rate limiting</i>"]
         D4["📱 Multi-Factor Auth (MFA)<br/><i>TOTP / Authenticator</i>"]
+        D5["🛡️ Fail2Ban<br/><i>Firewall IP banning</i>"]
     end
 
     A1 -.->|"Cracked via John / Hashcat"| D1
     A1 -.->|"Slowed down by work factor"| D2
     A2 -.->|"Blocked after N attempts"| D3
     A2 -.->|"Blocked without physical token"| D4
+    A2 -.->|"Blocked at network layer (iptables)"| D5
 
     classDef attack fill:#ffebee,stroke:#d32f2f,stroke-width:2px,color:#b71c1c;
     classDef defense fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#1b5e20;
     class A1,A2 attack;
-    class D1,D2,D3,D4 defense;
+    class D1,D2,D3,D4,D5 defense;
 ```
 
 ---
@@ -117,6 +119,34 @@ flowchart TD
 
 ---
 
+### 7. 🛡️ Fail2Ban (Intrusion Prevention & Network Shield)
+> **Definition:** An automated intrusion prevention system that scans log files in real time for suspicious patterns (such as repeated failed logins) and dynamically updates Linux firewall rules (`iptables` / `nftables`) to block the offending IP address.
+
+* **Core Operational Pipeline:**
+  $$\text{Failed Attempt} \xrightarrow{\text{written to}} \texttt{auth.log} \xrightarrow{\text{matched by}} \text{failregex} \xrightarrow{\ge \text{maxretry}} \text{iptables DROP rule}$$
+
+* **Key Mechanics & Configuration:**
+  * **Filter (`filter.d/flaskapp.conf`):** Defines the regular expression matching failed authentication events:
+    ```ini
+    failregex = Failed login attempt for user=\S+ from <HOST>
+    ```
+  * **Jail (`jail.d/flaskapp.local`):** Defines detection thresholds and ban actions:
+    * `findtime`: The time window monitored for repeated failures (e.g., `600` seconds / 10 minutes).
+    * `maxretry`: The number of failed attempts allowed within `findtime` before banning (e.g., `5` attempts).
+    * `bantime`: The duration an abusive IP is completely blocked (e.g., `900` seconds / 15 minutes).
+  * **Action:** Automatically adds packet-filtering rules to `iptables` to drop all incoming TCP packets destined for the target port (e.g., `5000`) from the banned IP.
+
+* **App-Level Lockout vs. Fail2Ban — Why Both Are Essential:**
+  * **App-Level Lockout (Account Shield):** Tracks failed attempts per username in the database. Protects an account even if an attacker attacks from multiple rotating IP addresses (distributed brute-force). However, every request still forces Flask and Python to execute code and query the database.
+  * **Fail2Ban (Server & Network Shield):** Tracks the *source IP address*. Once triggered, the Linux kernel firewall drops incoming traffic instantly. The request never touches Python, saving server CPU, RAM, and bandwidth, which prevents Denial-of-Service (DoS) and application crashes.
+  * **Layered Synergy:** App lockout safeguards user accounts against distributed credential attacks; Fail2Ban safeguards the server infrastructure from being overwhelmed by brute-force automation tools like Hydra.
+
+> [!IMPORTANT]
+> **Online vs. Offline Attack Scope:**  
+> Fail2Ban only protects active **online** network endpoints (such as stopping Hydra from brute-forcing `/login`). If an attacker extracts the database (`users.db`), Fail2Ban is completely bypassed because **offline** attacks (John the Ripper / Hashcat) run locally on the attacker's hardware without sending any network packets. Only slow, salted hashing (Argon2 / bcrypt) protects stolen offline hashes.
+
+---
+
 ## 📋 Summary Matrix
 
 | Concept | Classification | Primary Mechanism | Key Tools / Standards | Primary Countermeasure Against |
@@ -125,8 +155,9 @@ flowchart TD
 | **Brute-Force Attack** | 🔴 Threat | Rapid, automated password guessing against login endpoints | Hydra, Burp Suite | Account lockout, rate limits & MFA |
 | **Salted Hashing** | 🟢 Defense | Unique random seed prepended/appended to password | Cryptographic PRNG | Rainbow tables & cross-user cracking |
 | **Slow Hashing** | 🟢 Defense | Adjustable memory & CPU work factors | Argon2id, bcrypt, PBKDF2 | Offline hardware-accelerated cracking |
-| **Account Lockout** | 🟢 Defense | Threshold-based temporary suspension & request limiting | fail2ban, redis rate-limiter | Online automated guessing (Hydra) |
+| **Account Lockout** | 🟢 Defense | Threshold-based temporary suspension & request limiting | Database state, redis rate-limiter | Online automated guessing (Hydra) |
 | **MFA** | 🟢 Defense | Multi-layered independent authentication factors | TOTP (RFC 6238), WebAuthn | Credential leakage & password reuse |
+| **Fail2Ban** | 🟢 Defense | Log monitoring + automated kernel firewall IP banning | fail2ban, iptables, nftables | Network brute-force (Hydra) & server DoS |
 
 ---
 

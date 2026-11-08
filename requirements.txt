@@ -1,6 +1,10 @@
+# Python dependencies
 flask>=3.0.0
 bcrypt>=4.0.0
 argon2-cffi>=23.1.0
 pyotp>=2.9.0
 qrcode[pil]>=7.4.2
 
+# Wordlist requirement (external dataset):
+# rockyou.txt (~134 MB) is stored at: wordlists/rockyou.txt
+# (Wordlists are text dictionaries for John/Hashcat/Hydra, not pip packages)
