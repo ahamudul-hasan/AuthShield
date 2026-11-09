@@ -1,0 +1,71 @@
+# ==============================================================================
+# AUTHSHIELD - STEP 13: HASHCAT GPU CRACKING RESULTS
+# ==============================================================================
+# Target File:     results/md5_only.txt (14 hashes stripped of usernames)
+# Wordlist:        wordlists/rockyou.txt (14,344,391 candidate passwords)
+# Algorithm Mode:  -m 0 (MD5, Unsalted)
+# Attack Mode:     -a 0 (Straight Dictionary Attack)
+# Compute Device:  NVIDIA GeForce RTX 3060 Ti (CUDA 13.5) + AMD Ryzen 7 5700X
+# Output File:     results/cracked_hashcat.txt
+# Status:          COMPLETED (100% Cracked)
+# ==============================================================================
+
+## 1. PERFORMANCE & SPEED METRICS (KEY REPORT DATA)
+- Total Hashes Loaded:   14 digests (14 unique, 1 unique salt)
+- Recovered:             14 / 14 (100.00%)
+- Progress Reached:      2,492,416 / 14,344,384 (17.38% into wordlist)
+- GPU Compute Speed:     68,828.9 kH/s (~68.83 Million hashes / second)
+- Combined Speed:        68,850.9 kH/s (~68.85 Million hashes / second)
+- Kernel Cracking Time:  1 second
+- Total Wall-Clock Time: 30.95 seconds (including 140MB wordlist caching)
+
+--------------------------------------------------------------------------------
+
+## 2. RECOVERED HASH-TO-PLAINTEXT MAPPINGS (results/cracked_hashcat.txt)
+
+| MD5 Hash Digest                   | Cracked Plaintext Password |
+|:----------------------------------|:---------------------------|
+| e10adc3949ba59abbe56e057f20f883e  | 123456                     |
+| f25a2fc72690b780b2a14e140ef6a9e0  | iloveyou                   |
+| 8afa847f50a716e64932d995c8e7435a  | princess                   |
+| d0763edaa9d9bd2a9516280e9044d885  | monkey                     |
+| 37b4e2d82900d5e94b8da524fbeb33c0  | football                   |
+| 84d961568a65073a3bcf0eb216b2a576  | superman                   |
+| 3bf1114a986ba87ed28fc1b5884fc2f8  | shadow                     |
+| 5badcaf789d3d1d09794d8f021f40f0e  | starwars                   |
+| 0d107d09f5bbe40cade3de5c71e9e9b7  | letmein                    |
+| 6dbd0fe19c9a301c4708287780df41a2  | qwerty1                    |
+| 5fcfd41e547a12215b173ff47fdd3739  | trustno1                   |
+| 482c811da5d5b4bc6d497ffa98491e38  | password123                |
+| fac3b6c91a03f0896f369e471b1976e3  | dragon123                  |
+| 0192023a7bbd73250516f069df18b500  | admin123                   |
+
+--------------------------------------------------------------------------------
+
+## 3. RAW TERMINAL OUTPUT LOG (FORENSIC EVIDENCE FOR REPORT)
+
+$ cut -d: -f2 md5_hashes.txt > md5_only.txt
+$ time hashcat -m 0 -a 0 -o cracked_hashcat.txt md5_only.txt ../wordlists/rockyou.txt
+
+Session..........: hashcat
+Status...........: Cracked
+Hash.Mode........: 0 (MD5)
+Hash.Target......: md5_only.txt
+Time.Started.....: Mon Nov  9 17:47:52 2026 (1 sec)
+Time.Estimated...: Mon Nov  9 17:47:53 2026 (0 secs)
+Kernel.Feature...: Pure Kernel
+Guess.Base.......: File (../wordlists/rockyou.txt)
+Guess.Queue......: 1/1 (100.00%)
+Speed.#1.........: 68828.9 kH/s (3.21ms) @ Accel:2048 Loops:1 Thr:32 Vec:1
+Speed.#2.........:    21980 H/s (0.16ms) @ Accel:512 Loops:1 Thr:1 Vec:8
+Speed.#*.........: 68850.9 kH/s
+Recovered........: 14/14 (100.00%) Digests (total), 14/14 (100.00%) Digests (new)
+Progress.........: 2492416/14344384 (17.38%)
+Rejected.........: 0/2492416 (0.00%)
+Restore.Point....: 0/14344384 (0.00%)
+Hardware.Mon.#1..: Temp: 44c Fan:  0% Util: 22% Core:1665MHz Mem:9251MHz Bus:16
+
+real    0m30.949s
+user    0m25.653s
+sys     0m2.316s
+

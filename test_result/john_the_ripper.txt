@@ -1,0 +1,83 @@
+# ==============================================================================
+# AUTHSHIELD - STEP 12: JOHN THE RIPPER CRACKING RESULTS
+# ==============================================================================
+# Target File: results/md5_hashes.txt
+# Wordlist:    wordlists/rockyou.txt (14,344,391 candidate passwords)
+# Algorithm:   Raw-MD5 (Unsalted)
+# Date Run:    2026-11-09 17:13
+# Status:      COMPLETED (100% Cracked)
+# ==============================================================================
+
+## 1. PERFORMANCE & AUDIT SUMMARY
+- Total Hashes Loaded:   14
+- Unique Salts:          0 (Unsalted)
+- Elapsed Time:          < 0.01 seconds (0:00:00:00 DONE)
+- Cracking Speed:        644,571 candidate passwords / second (AVX2 accelerated)
+- Total Cracked:         14 / 14 (100% Success)
+
+--------------------------------------------------------------------------------
+
+## 2. RECOVERED CREDENTIALS TABLE
+
+| Username    | Recovered Plaintext Password | Stored MD5 Hash                   |
+|:------------|:-----------------------------|:----------------------------------|
+| alice       | password123                  | 482c811da5d5b4bc6d497ffa98491e38  |
+| bob         | letmein                      | 0d107d09f5bbe40cade3de5c71e9e9b7  |
+| carol       | dragon123                    | fac3b6c91a03f0896f369e471b1976e3  |
+| dave        | qwerty1                      | 6dbd0fe19c9a301c4708287780df41a2  |
+| eve         | 123456                       | e10adc3949ba59abbe56e057f20f883e  |
+| frank       | football                     | 37b4e2d82900d5e94b8da524fbeb33c0  |
+| grace       | monkey                       | d0763edaa9d9bd2a9516280e9044d885  |
+| heidi       | princess                     | 8afa847f50a716e64932d995c8e7435a  |
+| ivan        | shadow                       | 3bf1114a986ba87ed28fc1b5884fc2f8  |
+| judy        | trustno1                     | 5fcfd41e547a12215b173ff47fdd3739  |
+| mallory     | starwars                     | 5badcaf789d3d1d09794d8f021f40f0e  |
+| oscar       | superman                     | 84d961568a65073a3bcf0eb216b2a576  |
+| trent       | iloveyou                     | f25a2fc72690b780b2a14e140ef6a9e0  |
+| walter      | admin123                     | 0192023a7bbd73250516f069df18b500  |
+
+--------------------------------------------------------------------------------
+
+## 3. RAW TERMINAL AUDIT LOG (EVIDENCE FOR REPORT)
+
+$ john --format=Raw-MD5 --wordlist=../wordlists/rockyou.txt md5_hashes.txt
+Using default input encoding: UTF-8
+Loaded 14 password hashes with no different salts (Raw-MD5 [MD5 256/256 AVX2 8x3])
+Warning: no OpenMP support for this hash type, consider --fork=4
+Note: Passwords longer than 18 [worst case UTF-8] to 55 [ASCII] rejected
+Press 'q' or Ctrl-C to abort, 'h' for help, almost any other key for status
+123456           (eve)     
+iloveyou         (trent)     
+princess         (heidi)     
+monkey           (grace)     
+football         (frank)     
+superman         (oscar)     
+shadow           (ivan)     
+letmein          (bob)     
+starwars         (mallory)     
+qwerty1          (dave)     
+trustno1         (judy)     
+password123      (alice)     
+dragon123        (carol)
+admin123         (walter)
+14g 0:00:00:00 DONE (2026-11-09 17:13) 100.00g/s 644571p/s 644571c/s 784457C/s austin101..861204
+Use the "--show --format=Raw-MD5" options to display all of the cracked passwords reliably
+Session completed
+
+$ john --show --format=Raw-MD5 md5_hashes.txt
+alice:password123
+bob:letmein
+carol:dragon123
+dave:qwerty1
+eve:123456
+frank:football
+grace:monkey
+heidi:princess
+ivan:shadow
+judy:trustno1
+mallory:starwars
+oscar:superman
+trent:iloveyou
+walter:admin123
+
+14 password hashes cracked, 0 left

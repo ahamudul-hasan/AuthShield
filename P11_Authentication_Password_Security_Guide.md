@@ -1,4 +1,3 @@
-
 # P11 — Authentication & Password Security
 
 ### Step-by-step project guide (WSL/Ubuntu · Python + Flask + SQLite)

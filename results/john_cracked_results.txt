@@ -1,0 +1,15 @@
+alice:password123
+bob:letmein
+carol:dragon123
+dave:qwerty1
+eve:123456
+frank:football
+grace:monkey
+heidi:princess
+ivan:shadow
+judy:trustno1
+mallory:starwars
+oscar:superman
+trent:iloveyou
+walter:admin123
+
