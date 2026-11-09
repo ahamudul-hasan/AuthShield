@@ -1,8 +1,12 @@
 from flask import Flask, request, render_template_string, redirect
 import sqlite3, hashlib
+from pathlib import Path
 
 app = Flask(__name__)
-DB = "users.db"
+
+# Point directly to the centralized database
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB = str(BASE_DIR / "database" / "users.db")
 
 LOGIN_FORM = """
 <h2>Login</h2>
@@ -65,4 +69,3 @@ def login():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-
