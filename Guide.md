@@ -322,7 +322,7 @@ cp users.db ../results/users_phase1_weak.db.bak
 > 💡 **Why we do it:** Simulates a data breach where a hacker steals the database. In an offline attack, the hacker cracks passwords on their own PC without touching your website.
 > 🌟 **Why it matters:** Shows that website firewalls and login limits are completely useless once a hacker steals your password file.
 
-`app/dump_hashes.py`:
+cl`app/dump_hashes.py`:
 
 ```python
 import sqlite3

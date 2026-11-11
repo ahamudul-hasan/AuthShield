@@ -1,7 +1,7 @@
 # ==============================================================================
 # AUTHSHIELD - STEP 12: JOHN THE RIPPER CRACKING RESULTS
 # ==============================================================================
-# Target File: results/md5_hashes.txt
+# Target File: hashes/md5_hashes.txt
 # Wordlist:    wordlists/rockyou.txt (14,344,391 candidate passwords)
 # Algorithm:   Raw-MD5 (Unsalted)
 # Date Run:    2026-11-09 17:13

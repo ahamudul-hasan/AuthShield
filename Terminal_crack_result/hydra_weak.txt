@@ -1,0 +1,45 @@
+# ==============================================================================
+# AUTHSHIELD - STEP 14: HYDRA ONLINE BRUTE-FORCE RESULTS (WEAK APP)
+# ==============================================================================
+# Target Application : app/app_v1_weak.py (http://<TARGET_IP>:5000/login)
+# Tool               : Hydra v9.5 (http-post-form)
+# Wordlist           : wordlists/rockyou.txt (14,344,398 login tries configured)
+# Execution Window   : 2026-11-11 20:12:32 -> 2026-11-11 20:13:05
+# ==============================================================================
+
+## 1. PERFORMANCE & AUDIT SUMMARY
+
+- **Target Host & Port :** <TARGET_IP>:5000 (/login)
+- **Attack Module      :** http-post-form (failure match F=incorrect)
+- **Target Account     :** alice (1 username)
+- **Parallelism        :** 16 parallel tasks (~896,525 tries per task)
+- **Start Time         :** 2026-11-11 20:12:32
+- **Finish Time        :** 2026-11-11 20:13:05
+- **Elapsed Time       :** 33 seconds total wall-clock time
+                         (includes 10s wait from existing ./hydra.restore;
+                          ~23 seconds active brute-force execution)
+- **Outcome            :** 1 of 1 target successfully completed, 1 valid password found
+- **Security Finding   :** Weak application allowed unlimited high-concurrency
+                         login attempts with no rate limiting, account lockout,
+                         MFA, or Fail2Ban mitigation.
+
+## 2. RECOVERED CREDENTIALS TABLE
+
+| Username | Recovered Password | Target Service | Port |
+|----------|--------------------|----------------|------|
+| alice    | password123        | http-post-form | 5000 |
+
+## 3. RAW TERMINAL AUDIT LOG (EVIDENCE FOR REPORT)
+
+```text
+Hydra v9.5 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these *** ignore laws and ethics anyway).
+
+Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2026-11-11 20:12:32
+[WARNING] Restorefile (you have 10 seconds to abort... (use option -I to skip waiting)) from a previous session found, to prevent overwriting, ./hydra.restore
+[DATA] max 16 tasks per 1 server, overall 16 tasks, 14344398 login tries (l:1/p:14344398), ~896525 tries per task
+[DATA] attacking http-post-form://<TARGET_IP>:5000/login:username=^USER^&password=^PASS^:F=incorrect
+[5000][http-post-form] host: <TARGET_IP>   login: alice   password: password123
+1 of 1 target successfully completed, 1 valid password found
+Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2026-11-11 20:13:05
+```
+

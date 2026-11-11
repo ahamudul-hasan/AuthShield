@@ -1,7 +1,7 @@
 # ==============================================================================
 # AUTHSHIELD - STEP 13: HASHCAT GPU CRACKING RESULTS
 # ==============================================================================
-# Target File:     results/md5_only.txt (14 hashes stripped of usernames)
+# Target File:     hashes/md5_only.txt (14 hashes stripped of usernames)
 # Wordlist:        wordlists/rockyou.txt (14,344,391 candidate passwords)
 # Algorithm Mode:  -m 0 (MD5, Unsalted)
 # Attack Mode:     -a 0 (Straight Dictionary Attack)

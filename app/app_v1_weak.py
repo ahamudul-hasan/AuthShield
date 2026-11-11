@@ -64,7 +64,7 @@ def login():
         conn.close()
         if user and user["password_hash"] == pw_hash:
             return "Login successful! Welcome " + username
-        return "incorrect username or password", 401   # Hydra will match this failure string
+        return "incorrect username or password", 200   # Hydra will match this failure string
     return render_template_string(LOGIN_FORM)
 
 if __name__ == "__main__":
