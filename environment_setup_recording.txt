@@ -1,0 +1,74 @@
+
+--------------------------------------------------------------------------------
+PART 2: SHOW PROJECT STRUCTURE & TOOL INSTALLATION (~30 seconds)
+--------------------------------------------------------------------------------
+Goal: Show system tools and Python packages installed cleanly.
+(Because they are already installed, apt and pip finish in a few seconds
+ showing "already the newest version" and "Requirement already satisfied".)
+
+Run in WSL:
+  ls -la
+  cat requirements.txt
+
+Show Linux packages installed:
+  sudo apt update
+  sudo apt install -y python3 python3-venv python3-pip sqlite3 hashcat hydra fail2ban iptables net-tools curl git
+
+Show John the Ripper binary location (built from Jumbo source):
+  which john
+
+Activate your Python virtual environment and verify pip dependencies:
+  source ~/venvs/authshield/bin/activate
+  pip install -r requirements.txt
+
+What to say / point out:
+  "All system security tools and Python libraries (Flask, bcrypt, argon2-cffi,
+   pyotp, qrcode) are installed in the authshield virtual environment."
+
+
+--------------------------------------------------------------------------------
+PART 3: SHOW ATTACK / CRACKING TOOLS WORK (SELF-TESTS ONLY) (~45-60 seconds)
+--------------------------------------------------------------------------------
+Goal: Prove john, hashcat, and hydra execute properly without targeting anything.
+
+1) John the Ripper:
+  john --list=formats | grep -i -E "raw-md5|bcrypt"
+  john --test=1 --format=Raw-MD5
+
+  What it proves: John supports Raw-MD5 and bcrypt and passes its self-test.
+
+2) Hashcat:
+  hashcat --version
+  hashcat -I
+  hashcat -b -m 0
+
+  What it proves: Hashcat detects your compute device(s) (-I) and runs an MD5
+  benchmark (-b -m 0) showing real H/s throughput.
+
+3) THC-Hydra:
+  hydra -h | head -5
+
+  What it proves: Hydra v9.5 executes cleanly with no missing shared libraries.
+
+
+--------------------------------------------------------------------------------
+PART 4: SHOW DEFENSIVE TOOLS & PYTHON LIBRARIES WORK (~45 seconds)
+--------------------------------------------------------------------------------
+Goal: Prove fail2ban, iptables, bcrypt, Argon2id, pyotp (TOTP), and SQLite work.
+
+1) Fail2Ban & iptables firewall:
+  sudo fail2ban-client --version
+  sudo systemctl start fail2ban
+  sudo systemctl status fail2ban --no-pager
+  sudo iptables --version
+
+  What it proves: Fail2Ban runs cleanly under systemd and iptables is ready.
+
+2) Python defensive stack + TOTP verification (copy-paste as one line):
+  python3 -c "import flask, bcrypt, argon2, pyotp, qrcode, sqlite3; h = bcrypt.hashpw(b'TestPass123', bcrypt.gensalt(4)); assert bcrypt.checkpw(b'TestPass123', h); ph = argon2.PasswordHasher(); ah = ph.hash('TestPass123'); assert ph.verify(ah, 'TestPass123'); code = pyotp.TOTP(pyotp.random_base32()).now(); print('bcrypt OK | argon2id OK | TOTP sample:', code, '| All Python packages OK!')"
+
+  What it proves: Flask imports cleanly, bcrypt and Argon2id hash and verify
+  passwords, pyotp generates a 6-digit TOTP MFA code, and sqlite3/qrcode load.
+
+
+
