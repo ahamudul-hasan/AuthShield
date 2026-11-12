@@ -10,21 +10,21 @@
 
 A single Flask + SQLite login app that you deliberately build **weak first**, break it, then **harden it**, and break it again (and fail) to prove the defenses work.
 
-| Milestone (from [Topic.md](Topic.md))             | What it maps to below |
+| Milestone (from [Topic.md](Topic.md))              | What it maps to below |
 | ------------------------------------------------- | --------------------- |
 | 1. Crack weak hashes & brute-force the login      | Phase 1 + Phase 2     |
 | 2. Add salted slow hashing, lockout, MFA          | Phase 3               |
 | 3. Re-run and tabulate crack-time vs. work factor | Phase 4               |
 
-| Rubric criterion ([Evalution_metric.pdf](Evalution_metric.pdf)) | Where it's produced      |
-| --------------------------------------------------------------- | ------------------------ |
-| Problem definition & threat model (2)                           | Phase 5, Step 21         |
-| Methodology & lab setup (3)                                     | Phase 0, Phase 5         |
-| Attack implementation & results (3)                             | Phase 2, Phase 4         |
-| Defense / mitigation & evaluation (3)                           | Phase 3, Phase 4         |
+| Rubric criterion ([Evalution_metric.pdf](Evalution_metric.pdf))      | Where it's produced      |
+| ------------------------------------------------------------------- | ------------------------ |
+| Problem definition & threat model (2)                               | Phase 5, Step 21         |
+| Methodology & lab setup (3)                                         | Phase 0, Phase 5         |
+| Attack implementation & results (3)                                 | Phase 2, Phase 4         |
+| Defense / mitigation & evaluation (3)                               | Phase 3, Phase 4         |
 | Analysis & discussion (2) *(incl. limits, false positives, risk)* | Phase 5 + Phase 6 (viva) |
-| Report quality & reproducibility (2)                            | Phase 5                  |
-| Live demo & viva (15, individual)                               | Phase 6                  |
+| Report quality & reproducibility (2)                                | Phase 5                  |
+| Live demo & viva (15, individual)                                   | Phase 6                  |
 
 ---
 
@@ -783,6 +783,7 @@ hydra -l testvictim -P wordlists/rockyou.txt <your-eth0-ip> -s 5000 \
 ```
 
 What to expect and capture:
+
 1. After `5` wrong attempts (`MAX_ATTEMPTS = 5`), `app_v2_hardened.py` locks `testvictim` (`403 account temporarily locked...`).
 2. After `maxretry = 5` log entries in `logs/auth.log`, `fail2ban` bans `<your-eth0-ip>` on port `5000`, blocking subsequent connections.
 3. Also verify directly with `curl -i -X POST -d "username=testvictim&password=wrong" http://<your-eth0-ip>:5000/login` (after unbanning IP) to show the `HTTP/1.1 403 FORBIDDEN` lockout body, and save evidence:
@@ -896,13 +897,13 @@ john --format=bcrypt --wordlist=wordlists/rockyou.txt hashes/bcrypt_hashes.txt
 
 Tabulate the real Hashcat / John measurements alongside Step 13 (`MD5 -m 0`) and Step 19:
 
-| Algorithm & Work Factor | Hashcat Mode | Measured Speed (`H/s`) | Per-Hash Cost (Step 19) | Projected Full `rockyou.txt` Time |
-| ----------------------- | ------------ | ---------------------- | ----------------------- | --------------------------------- |
-| MD5 (unsalted)          | `-m 0`       | *(from Step 13)*       | *(from Step 19)*        | Seconds                           |
-| bcrypt (`rounds=10`)    | `-m 3200`    | *(from Step 20)*       | *(from Step 19)*        | Hours / Days                      |
-| bcrypt (`rounds=12`)    | `-m 3200`    | *(from Step 20)*       | *(from Step 19)*        | Days / Months                     |
-| bcrypt (`rounds=14`)    | `-m 3200`    | *(est. `1/4` of r=12)* | *(from Step 19)*        | Years                             |
-| Argon2id (`t=2,m=19MB`) | `-m 34000`   | *(CPU/GPU bound)*      | *(from Step 19)*        | Memory-hard resistance            |
+| Algorithm & Work Factor   | Hashcat Mode | Measured Speed (`H/s`)   | Per-Hash Cost (Step 19) | Projected Full `rockyou.txt` Time |
+| ------------------------- | ------------ | -------------------------- | ----------------------- | ----------------------------------- |
+| MD5 (unsalted)            | `-m 0`     | *(from Step 13)*         | *(from Step 19)*      | Seconds                             |
+| bcrypt (`rounds=10`)    | `-m 3200`  | *(from Step 20)*         | *(from Step 19)*      | Hours / Days                        |
+| bcrypt (`rounds=12`)    | `-m 3200`  | *(from Step 20)*         | *(from Step 19)*      | Days / Months                       |
+| bcrypt (`rounds=14`)    | `-m 3200`  | *(est. `1/4` of r=12)* | *(from Step 19)*      | Years                               |
+| Argon2id (`t=2,m=19MB`) | `-m 34000` | *(CPU/GPU bound)*        | *(from Step 19)*      | Memory-hard resistance              |
 
 > **Checkpoint — Milestone 3 done:** You have real tool crack-rate comparisons across algorithms and work factors, plus an end-to-end "attack now blocked" demonstration.
 
