@@ -1,0 +1,108 @@
+# ==============================================================================
+# AUTHSHIELD - STEP 18: DEFENSE VERIFICATION & HYDRA BRUTE-FORCE MITIGATION
+# ==============================================================================
+# Target Application : app/app_v2_hardened.py (http://<TARGET_IP>:5000/login)
+# Attacking Tool     : Hydra v9.5 (http-post-form brute force)
+# Defense Shield     : Fail2Ban Automated Jail (flaskapp) + Linux iptables Firewall
+# Application Defense: 5-Attempt Account Lockout
+# Status             : ATTACK COMPLETELY NEUTRALIZED / DEFENSE 100% SUCCESSFUL
+# ==============================================================================
+
+## 1. DEFENSE SUMMARY
+
+- Target Host & Port : <TARGET_IP>:5000 (/login)
+- Attacked Account   : testvictim
+- Attack Method      : 16 parallel threads dictionary attack (rockyou.txt)
+- Attack Duration    : 15 seconds before total cutoff
+- Attack Result      : FAILED (0 passwords found, all threads terminated with connection errors)
+- Defense Reaction   :
+  1. Application logged repeated failed login attempts to `logs/auth.log`.
+  2. Fail2Ban detected 30 rapid failed attempts exceeding `maxretry = 5`.
+  3. Fail2Ban automatically added an `iptables` DROP rule targeting `<TARGET_IP>`.
+  4. Port 5000 refused all incoming traffic from the attacker, shutting down the attack instantly.
+
+
+## 2. FAIL2BAN JAIL STATUS AUDIT
+
+Command:
+$ sudo fail2ban-client status flaskapp
+
+Output:
+Status for the jail: flaskapp
+|- Filter
+|  |- Currently failed: 0
+|  |- Total failed:     30
+|  `- File list:        /home/prianto/p11-auth-project/logs/auth.log
+`- Actions
+   |- Currently banned: 1
+   |- Total banned:     1
+   `- Banned IP list:   <TARGET_IP>
+
+
+## 3. APPLICATION AUTHENTICATION LOG AUDIT (LAST 20 ATTEMPTS)
+
+Command:
+$ tail -20 logs/auth.log
+
+Output:
+2026-11-13 20:42:59 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:42:59 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:42:59 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
+
+
+## 4. RAW HYDRA ATTACK FAILURE LOG
+
+Command:
+$ hydra -l testvictim -P wordlists/rockyou.txt <TARGET_IP> -s 5000 http-post-form "/login:username=^USER^&password=^PASS^:S=/verify-mfa"
+
+Output:
+Hydra v9.5 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these *** ignore laws and ethics anyway).
+
+Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2026-11-13 20:42:55
+[DATA] max 16 tasks per 1 server, overall 16 tasks, 14344398 login tries (l:1/p:14344398), ~896525 tries per task
+[DATA] attacking http-post-form://<TARGET_IP>:5000/login:username=^USER^&password=^PASS^:S=/verify-mfa
+[ERROR] Child with pid 743 terminating, cannot connect
+[ERROR] Child with pid 755 terminating, cannot connect
+[ERROR] Child with pid 729 terminating, cannot connect
+[ERROR] Child with pid 735 terminating, cannot connect
+[ERROR] Child with pid 749 terminating, cannot connect
+[ERROR] Child with pid 751 terminating, cannot connect
+[ERROR] Child with pid 746 terminating, cannot connect
+[ERROR] Child with pid 745 terminating, cannot connect
+[ERROR] Child with pid 733 terminating, cannot connect
+[ERROR] Child with pid 739 terminating, cannot connect
+[ERROR] Child with pid 741 terminating, cannot connect
+[ERROR] Child with pid 756 terminating, cannot connect
+[ERROR] Child with pid 731 terminating, cannot connect
+[ERROR] Child with pid 728 terminating, cannot connect
+[ERROR] Child with pid 737 terminating, cannot connect
+[ERROR] Child with pid 752 terminating, cannot connect
+[ERROR] Child with pid 824 terminating, cannot connect
+[ERROR] Child with pid 825 terminating, cannot connect
+[ERROR] Child with pid 826 terminating, cannot connect
+[ERROR] Child with pid 827 terminating, cannot connect
+[ERROR] Child with pid 829 terminating, cannot connect
+[ERROR] Child with pid 828 terminating, cannot connect
+[ERROR] all children were disabled due too many connection errors
+0 of 1 target completed, 0 valid password found
+[INFO] Writing restore file because 2 server scans could not be completed
+[ERROR] 1 target was disabled because of too many errors
+[ERROR] 1 targets did not complete
+Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2026-11-13 20:43:10

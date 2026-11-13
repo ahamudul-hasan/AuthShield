@@ -6,7 +6,7 @@
 
 ---
 
-## 0. What you're building 
+## 0. What you're building
 
 A single Flask + SQLite login app that you deliberately build **weak first**, break it, then **harden it**, and break it again (and fail) to prove the defenses work.
 
@@ -793,7 +793,7 @@ sudo fail2ban-client status flaskapp
 tail -20 logs/auth.log
 ```
 
-Save the anonymized terminal output in `Terminal_crack_result/hydra_hardened.txt` (remember to replace your private IP with `<TARGET_IP>`).
+Save the anonymized terminal output in `Terminal_defence_result/hydra_hardened.txt` (remember to replace your private IP with `<TARGET_IP>`).
 
 ---
 
