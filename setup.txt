@@ -1,0 +1,58 @@
+--------------------------------------------------------------------------------
+TOOL 1: JOHN THE RIPPER (Offline Password Hash Cracker)
+--------------------------------------------------------------------------------
+1. Install Command:
+   sudo apt install -y john
+
+
+2. Show That It Works:
+   john --test=1 --format=Raw-MD5
+
+
+--------------------------------------------------------------------------------
+TOOL 2: HASHCAT (GPU / Accelerated Password Cracker)
+--------------------------------------------------------------------------------
+1. Manual Install Command:
+   sudo apt install -y hashcat
+
+2. Show That It Works:
+   hashcat --version
+   hashcat -I
+
+
+--------------------------------------------------------------------------------
+TOOL 3: THC-HYDRA (Online Web Login Brute-Forcer)
+--------------------------------------------------------------------------------
+1. Manual Install Command:
+   sudo apt install -y hydra
+
+
+2. Show That It Works:
+   hydra -h | head -n 5
+   hydra -U http-post-form | head -n 7
+
+
+--------------------------------------------------------------------------------
+TOOL 4: FAIL2BAN (+ IPTABLES FIREWALL) (Automated Intrusion Prevention)
+--------------------------------------------------------------------------------
+1. Manual Install Command:
+   sudo apt install -y fail2ban iptables
+
+
+2. Show That It Works:
+   sudo fail2ban-client --version
+   sudo systemctl status fail2ban --no-pager
+   sudo iptables --version
+
+
+--------------------------------------------------------------------------------
+TOOL 5: A TOTP LIBRARY (pyotp + qrcode Two-Factor Authentication)
+--------------------------------------------------------------------------------
+1. Manual Install Command:
+   pip install pyotp "qrcode[pil]"
+
+
+2. Show That It Works:
+   python3 -c "import pyotp; s=pyotp.random_base32(); t=pyotp.TOTP(s); c=t.now(); print('Base32 Secret:', s); print('Live 6-Digit TOTP Code:', c); print('Verification Check:', t.verify(c))"
+
+
