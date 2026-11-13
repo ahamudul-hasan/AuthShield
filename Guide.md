@@ -6,7 +6,7 @@
 
 ---
 
-## 0. What you're building
+## 0. What you're building 
 
 A single Flask + SQLite login app that you deliberately build **weak first**, break it, then **harden it**, and break it again (and fail) to prove the defenses work.
 
