@@ -1,0 +1,38 @@
+# ==============================================================================
+# AUTHSHIELD - MILESTONE 3: HASHING SPEED & CRACK-TIME VS. WORK FACTOR
+# ==============================================================================
+# GPU Device : NVIDIA GeForce RTX 3060 Ti (CUDA 13.5, 8GB VRAM)
+# CPU Device : AMD Ryzen 7 5700X 8-Core Processor
+# Wordlist   : wordlists/rockyou.txt (14,344,384 candidate passwords)
+# ==============================================================================
+
+## 1. COMPREHENSIVE CRACK-RATE & WORK FACTOR BENCHMARK TABLE
+
+| Algorithm & Work Factor   | Cracking Mode | Hashcat Speed (GPU+CPU) | Python Benchmark Cost (Step 19) | Projected Full rockyou.txt Time |
+|:--------------------------|:-------------:|:-----------------------:|:-------------------------------:|:--------------------------------|
+| MD5 (unsalted)            | `-m 0`        | 68,850,900 H/s          | 0.0004 ms (2,682,184 H/s)       | 0.21 sec (GPU) / 5.35 sec (CPU) |
+| bcrypt (rounds=10)        | `-m 3200`     | 1,393 H/s               | 46.83 ms (21.4 H/s)             | 2.86 hours (GPU) / 7.77 days    |
+| bcrypt (rounds=12)        | `-m 3200`     | 387 H/s                 | 187.24 ms (5.3 H/s)             | 10.30 hours (GPU) / 31.09 days  |
+| bcrypt (rounds=14)        | `-m 3200`     | ~97 H/s (est.)          | 750.26 ms (1.3 H/s)             | ~41.2 hours (GPU) / 124.56 days |
+| Argon2id (t=2, m=19MB)    | `-m 34000`    | Memory-hard             | 20.89 ms (47.9 H/s)             | 3.47 days (CPU, GPU memory-choked)|
+| Argon2id (t=3, m=64MB)    | `-m 34000`    | Memory-hard             | 129.06 ms (7.7 H/s)             | 21.43 days (CPU, GPU memory-choked)|
+
+---
+
+## 2. JOHN THE RIPPER CPU BENCHMARK (STEP 20)
+
+- Tool: John the Ripper (bcrypt [Blowfish 32/64 X3], 4 OpenMP threads)
+- Target: bcrypt rounds=12 (Cost 1 iteration count: 4096)
+- Measured CPU Speed: 54.97 p/s (passwords/second)
+- Projected rockyou.txt Duration: ~3.02 days on 4 CPU threads
+
+---
+
+## 3. KEY EMPIRICAL FINDINGS
+
+1. The $2^\Delta$ Mathematical Rule Confirmed:
+   - Increasing bcrypt cost factor from 10 to 12 represents a 2-round increase ($2^{12} / 2^{10} = 4$).
+   - Measured Hashcat GPU speed dropped from 1,393 H/s to 387 H/s ($1393 / 387 = 3.60\times$ reduction, closely matching theoretical 4×).
+2. Defense Asymmetry (MD5 vs. bcrypt):
+   - Switching from unsalted MD5 to bcrypt rounds=12 reduces GPU cracking throughput by a massive factor of ~178,000× (68.85 Million H/s down to 387 H/s).
+   - A dictionary search that takes a fraction of a second against MD5 is pushed to half a day on an RTX 3060 Ti and over a month on a CPU.
