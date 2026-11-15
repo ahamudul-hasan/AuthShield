@@ -105,4 +105,3 @@ Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2026-11-13 20:42:
 [INFO] Writing restore file because 2 server scans could not be completed
 [ERROR] 1 target was disabled because of too many errors
 [ERROR] 1 targets did not complete
-Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2026-11-13 20:43:10
