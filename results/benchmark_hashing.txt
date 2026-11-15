@@ -1,0 +1,8 @@
+Algorithm         Work Factor           Time/Hash (ms)    Hashes/sec    Est. Full rockyou.txt
+---------------------------------------------------------------------------------------------
+MD5 (unsalted)    -                     0.0004            2682184.0     5.35 sec
+bcrypt            rounds=10             46.8293           21.4          7.77 days
+bcrypt            rounds=12             187.2442          5.3           31.09 days
+bcrypt            rounds=14             750.2622          1.3           124.56 days
+Argon2id          t=2, m=19MB, p=1      20.8930           47.9          3.47 days
+Argon2id          t=3, m=64MB, p=1      129.0647          7.7           21.43 days
