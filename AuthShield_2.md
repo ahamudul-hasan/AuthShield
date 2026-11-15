@@ -6,7 +6,7 @@ platform\
 **Development environment:** WSL2 Ubuntu\
 **Frontend:** React + TypeScript + Tailwind CSS\
 **Backend:** Python + Flask\
-**Database:** PostgreSQL\
+**Database:** PostgreSQL (Neon Serverless Cloud)\
 **Main priority:** Security event detection and threat monitoring
 
 ------------------------------------------------------------------------
@@ -25,7 +25,7 @@ AuthShield 2.0 will keep that learning approach while adding:
 
 -   A modern React and Tailwind user interface.
 -   A Flask REST API.
--   PostgreSQL for the new application.
+-   PostgreSQL (hosted on Neon Serverless) for the new application.
 -   Strong password hashing with Argon2id.
 -   Existing bcrypt password migration support.
 -   TOTP multi-factor authentication.
@@ -88,7 +88,7 @@ The original P11 guide contains these important features:
 | TOTP MFA | Keep and improve |
 | Fail2Ban and iptables | Keep as network-level defenses |
 | Hashing benchmarks | Keep the old results and add new Argon2id measurements |
-| SQLite | Preserve the old database; use PostgreSQL for the new application |
+| SQLite | Preserve the old database; use PostgreSQL (Neon Serverless Cloud) for the new application |
 | Basic `auth.log` | Keep a compatible log output for Fail2Ban and add structured database events |
 
 ## Important safety boundary
@@ -262,12 +262,12 @@ The application will have five main parts.
 | Event collector | Records authentication and security activity |
 | Detection engine | Finds suspicious patterns in collected events |
 | Alert manager | Creates and updates security alerts |
-| PostgreSQL | Stores users, events, alerts, and sessions |
+| PostgreSQL (Neon Cloud) | Stores users, events, alerts, and sessions in serverless cloud |
 | Fail2Ban + iptables | Provides network-level blocking when configured |
 | Automated tests | Checks that the application and defenses behave correctly |
 
 React never talks to the database directly. It only calls the Flask API, and Fail2Ban reads the
-compatible `auth.log` file (it does not read PostgreSQL).
+compatible `auth.log` file locally (it does not read PostgreSQL/Neon).
 
 **Important design rule:** The frontend displays security information.
 The backend makes authentication, detection, and authorization
@@ -276,10 +276,10 @@ endpoint.
 
 ------------------------------------------------------------------------
 
-# 4. Stage 1 — Build the Flask backend and PostgreSQL foundation
+# 4. Stage 1 — Build the Flask backend and Neon PostgreSQL foundation
 
 **Stage goal:** Create the backend structure and connect it to a new
-PostgreSQL database.
+Neon Serverless PostgreSQL database.
 
 Estimated effort: 3–5 days.
 
@@ -363,56 +363,48 @@ when you reach Step 6.10 for real-time WebSocket updates.
 
 **Check:** Run `pip list` and confirm that the packages are installed.
 
-## Step 1.3 — Install and configure PostgreSQL
+## Step 1.3 — Create and configure Neon Serverless PostgreSQL
 
-**What this step does:** Sets up PostgreSQL for the new AuthShield
-application.
+**What this step does:** Creates a free, cloud-hosted serverless PostgreSQL
+database using Neon (https://neon.tech).
 
-**Why we do it:** The original P11 project uses SQLite, which is
-suitable for a small local experiment. PostgreSQL gives the new
-application a stronger foundation for structured data, multiple users,
-and concurrent activity.
+**Why we do it:** The original P11 project uses SQLite for local coursework.
+AuthShield 2.0 uses PostgreSQL for concurrent event ingestion and alerts.
+Using Neon provides a fully managed, production-grade PostgreSQL instance in
+seconds without needing to install, configure, or maintain local background
+services in WSL2.
 
-**Why it matters:** Security events and alerts will become important
-application data. They need reliable storage and useful query support.
+**Why it matters:** You get a built-in web SQL console, table visualizer,
+automated backups, and instant database branching (allowing you to branch the
+database for testing without breaking main data), while saving local RAM.
 
-Install PostgreSQL in Ubuntu if it is not already installed:
+Implementation tasks:
 
-``` bash
-sudo apt update
-sudo apt install postgresql postgresql-contrib
-```
+1.  Sign up or log in at **https://neon.tech**.
+2.  Click **Create Project** (Project name: `authshield-db`, Postgres version: 16, Region: choose the one closest to you).
+3.  Neon immediately generates your database credentials. In the project dashboard under **Connection Details**:
+    - Select **Connection string**
+    - Copy the generated URI. It will look like:
+      ```text
+      postgresql://neondb_owner:YOUR_NEON_PASSWORD@ep-xyz.region.aws.neon.tech/neondb?sslmode=require
+      ```
+4.  Change the driver prefix from `postgresql://` to `postgresql+psycopg://` so SQLAlchemy uses the modern `psycopg` (psycopg3) driver installed in Step 1.2:
+    ```text
+    postgresql+psycopg://neondb_owner:YOUR_NEON_PASSWORD@ep-xyz.region.aws.neon.tech/neondb?sslmode=require
+    ```
+5.  *(Optional)* In the Neon Console under **Branches**, create a secondary branch named `test` (e.g. `authshield-test`). Use this connection string for `tests/` so automated test suites never overwrite live development events.
 
-Start and check the service:
-
-``` bash
-sudo service postgresql start
-sudo service postgresql status
-```
-
-Create a development database and a separate application user. In Ubuntu,
-open the PostgreSQL prompt as the `postgres` system user:
- 
-``` bash
-sudo -u postgres psql
-```
-
-Then run the setup SQL (use a strong password and do not put it in Git):
-
-``` sql
-CREATE USER authshield_user WITH PASSWORD 'replace-this-password';
-CREATE DATABASE authshield_db OWNER authshield_user;
-\q
-```
-
-Use a separate test database for automated tests.
-
-**Check:** Connect using TCP (`-h 127.0.0.1`) so password authentication is used instead of local peer auth:
+**Check:** Verify connection to Neon from your terminal using Python:
 
 ``` bash
-psql -h 127.0.0.1 -U authshield_user -d authshield_db
+python -c "
+import psycopg
+conn = psycopg.connect('postgresql://neondb_owner:YOUR_NEON_PASSWORD@ep-xyz.region.aws.neon.tech/neondb?sslmode=require')
+print('Connected to Neon PostgreSQL version:', conn.execute('SELECT version()').fetchone()[0])
+conn.close()
+"
 ```
-Confirm that it prompts for your password and opens successfully.
+Confirm that it prints the PostgreSQL version string without errors.
 
 ## Step 1.4 — Configure environment variables
 
@@ -431,7 +423,7 @@ Create `backend/.env`:
 ``` env
 FLASK_DEBUG=false
 SECRET_KEY=generate-a-long-random-secret
-DATABASE_URL=postgresql+psycopg://authshield_user:YOUR_PASSWORD@localhost/authshield_db
+DATABASE_URL=postgresql+psycopg://neondb_owner:YOUR_NEON_PASSWORD@ep-xyz.region.aws.neon.tech/neondb?sslmode=require
 ```
 
 Make sure `.gitignore` contains these entries (most were already added in
@@ -1896,9 +1888,9 @@ local setup.
 
 Initial services:
 
--   `frontend`
--   `backend`
--   `db`
+-   `frontend` (React + Vite)
+-   `backend` (Flask API)
+-   `db` (Optional: when using Neon cloud PostgreSQL, the database is hosted externally in the cloud. Keep a local PostgreSQL container here only if providing a 100% offline fallback)
 
 Add Nginx later if you need a reverse proxy.
 
@@ -2007,15 +1999,20 @@ Start with these tables and add fields as the application develops.
 
 ## Important database rules
 
-1.  Use database migrations.
-2.  Add indexes for frequently searched event fields.
+1.  Use database migrations (Flask-Migrate / Alembic).
+2.  Add indexes for frequently searched event fields (`event_type`, `user_id`, `source_ip`, `timestamp`).
 3.  Use UTC timestamps.
 4.  Never store plaintext passwords or reset tokens.
-5.  Protect MFA secrets.
-6.  Restrict database access to the application account.
-7.  Back up the database.
-8.  Keep the original SQLite P11 database separate.
-9.  Do not name a model attribute `metadata` (reserved by SQLAlchemy).
+5.  Protect MFA secrets (encrypt at rest).
+6.  Restrict database access: never commit Neon credentials to Git.
+7.  Keep the original SQLite P11 database separate.
+8.  Do not name a model attribute `metadata` (reserved by SQLAlchemy Declarative API).
+
+## Neon Serverless cloud configuration tips
+
+-   **SSL Enforcement:** Neon strictly requires encrypted connections; ensure `?sslmode=require` is appended to `DATABASE_URL`.
+-   **Connection Pooling:** Neon provides a pooled connection endpoint (host ending with `-pooler`). Using the pooled endpoint prevents exhausting serverless connections when running multi-threaded Flask workers.
+-   **Branching for Testing:** Create a separate `test` branch in the Neon web console for running `pytest` test suites so unit/integration tests do not wipe or clutter development data.
 
 ------------------------------------------------------------------------
 
@@ -2272,7 +2269,7 @@ claim that AuthShield detects every attack.
 
 Your first major milestone should be:
 
-**Flask + PostgreSQL + Argon2id authentication + structured security
+**Flask + Neon PostgreSQL + Argon2id authentication + structured security
 events + brute-force detection.**
 
 When this milestone works, you will have the most important backend
@@ -2283,7 +2280,7 @@ Your first practical tasks are:
 1.  Back up and preserve P11.
 2.  Create the `authshield-v2` Git branch.
 3.  Create the backend folder and Python virtual environment.
-4.  Set up PostgreSQL.
+4.  Create and connect the Neon PostgreSQL database.
 5.  Create the Flask application factory.
 6.  Create the user and security-event models.
 7.  Implement Argon2id with bcrypt migration support.
