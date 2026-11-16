@@ -1,5 +1,5 @@
 # ==============================================================================
-# AUTHSHIELD - STEP 13: HASHCAT GPU CRACKING RESULTS
+# AUTHSHIELD - HASHCAT GPU CRACKING RESULTS
 # ==============================================================================
 # Target File:     hashes/md5_only.txt (14 hashes stripped of usernames)
 # Wordlist:        wordlists/rockyou.txt (14,344,391 candidate passwords)
@@ -44,17 +44,17 @@
 
 ## 3. RAW TERMINAL OUTPUT LOG (FORENSIC EVIDENCE FOR REPORT)
 
-$ cut -d: -f2 md5_hashes.txt > md5_only.txt
-$ time hashcat -m 0 -a 0 -o cracked_hashcat.txt md5_only.txt ../wordlists/rockyou.txt
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ cut -d: -f2 hashes/md5_hashes.txt > hashes/md5_only.txt
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ time hashcat -m 0 -a 0 -o results/cracked_hashcat.txt hashes/md5_only.txt wordlists/rockyou.txt
 
 Session..........: hashcat
 Status...........: Cracked
 Hash.Mode........: 0 (MD5)
-Hash.Target......: md5_only.txt
+Hash.Target......: hashes/md5_only.txt
 Time.Started.....: Mon Nov  9 17:47:52 2026 (1 sec)
 Time.Estimated...: Mon Nov  9 17:47:53 2026 (0 secs)
 Kernel.Feature...: Pure Kernel
-Guess.Base.......: File (../wordlists/rockyou.txt)
+Guess.Base.......: File (wordlists/rockyou.txt)
 Guess.Queue......: 1/1 (100.00%)
 Speed.#1.........: 68828.9 kH/s (3.21ms) @ Accel:2048 Loops:1 Thr:32 Vec:1
 Speed.#2.........:    21980 H/s (0.16ms) @ Accel:512 Loops:1 Thr:1 Vec:8
@@ -68,4 +68,4 @@ Hardware.Mon.#1..: Temp: 44c Fan:  0% Util: 22% Core:1665MHz Mem:9251MHz Bus:16
 real    0m30.949s
 user    0m25.653s
 sys     0m2.316s
-
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ 

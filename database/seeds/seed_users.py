@@ -1,18 +1,16 @@
 import sqlite3, hashlib
 from pathlib import Path
 
-# Resolve path: AuthShield/database/users.db
 DB_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = DB_DIR / "users.db"
 
 def seed(db_path=DB_PATH):
     users = [
-        # Original dummy victims from lab guide
+
         ("alice", "password123"),
         ("bob", "letmein"),
         ("carol", "dragon123"),
         ("dave", "qwerty1"),
-        # Additional diverse dictionary victims (all present in rockyou.txt)
         ("eve", "123456"),
         ("frank", "football"),
         ("grace", "monkey"),

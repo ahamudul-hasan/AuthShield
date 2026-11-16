@@ -1,5 +1,5 @@
 # ==============================================================================
-# AUTHSHIELD - STEP 12: JOHN THE RIPPER CRACKING RESULTS
+# AUTHSHIELD - JOHN THE RIPPER CRACKING RESULTS
 # ==============================================================================
 # Target File: hashes/md5_hashes.txt
 # Wordlist:    wordlists/rockyou.txt (14,344,391 candidate passwords)
@@ -38,9 +38,9 @@
 
 --------------------------------------------------------------------------------
 
-## 3. RAW TERMINAL AUDIT LOG (EVIDENCE FOR REPORT)
+## 3. RAW TERMINAL AUDIT LOG 
 
-$ john --format=Raw-MD5 --wordlist=../wordlists/rockyou.txt md5_hashes.txt
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ john --format=Raw-MD5 --wordlist=wordlists/rockyou.txt hashes/md5_hashes.txt
 Using default input encoding: UTF-8
 Loaded 14 password hashes with no different salts (Raw-MD5 [MD5 256/256 AVX2 8x3])
 Warning: no OpenMP support for this hash type, consider --fork=4
@@ -64,7 +64,7 @@ admin123         (walter)
 Use the "--show --format=Raw-MD5" options to display all of the cracked passwords reliably
 Session completed
 
-$ john --show --format=Raw-MD5 md5_hashes.txt
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ john --show --format=Raw-MD5 hashes/md5_hashes.txt
 alice:password123
 bob:letmein
 carol:dragon123
@@ -81,3 +81,5 @@ trent:iloveyou
 walter:admin123
 
 14 password hashes cracked, 0 left
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ 
+

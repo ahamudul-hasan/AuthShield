@@ -9,8 +9,7 @@
 
 ## 1. HASHCAT BCRYPT ROUNDS=10 BENCHMARK (-m 3200)
 
-```text
-$ hashcat -m 3200 -a 0 hashes/bcrypt_r10_only.txt wordlists/rockyou.txt
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ hashcat -m 3200 -a 0 hashes/bcrypt_r10_only.txt wordlists/rockyou.txt
 CUDA API (CUDA 13.5)
 * Device #1: NVIDIA GeForce RTX 3060 Ti, 7126/8191 MB, 38MCU
 * Device #2: cpu-haswell-AMD Ryzen 7 5700X 8-Core Processor
@@ -24,14 +23,14 @@ Speed.#1.........:     1342 H/s (9.53ms) @ Accel:4 Loops:4 Thr:24 Vec:1 (RTX 306
 Speed.#2.........:       51 H/s (7.55ms) @ Accel:4 Loops:32 Thr:1 Vec:1 (Ryzen 7 5700X)
 Speed.#*.........:     1393 H/s (Total Combined Speed)
 Recovered........: 1/1 (100.00%)
-```
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ 
+
 
 ---
 
 ## 2. HASHCAT BCRYPT ROUNDS=12 BENCHMARK (-m 3200)
 
-```text
-$ hashcat -m 3200 -a 0 hashes/bcrypt_r12_only.txt wordlists/rockyou.txt
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ hashcat -m 3200 -a 0 hashes/bcrypt_r12_only.txt wordlists/rockyou.txt
 CUDA API (CUDA 13.5)
 * Device #1: NVIDIA GeForce RTX 3060 Ti, 7126/8191 MB, 38MCU
 * Device #2: cpu-haswell-AMD Ryzen 7 5700X 8-Core Processor
@@ -45,17 +44,16 @@ Speed.#1.........:      372 H/s (8.75ms) @ Accel:1 Loops:16 Thr:24 Vec:1 (RTX 30
 Speed.#2.........:       14 H/s (7.90ms) @ Accel:4 Loops:32 Thr:1 Vec:1 (Ryzen 7 5700X)
 Speed.#*.........:      387 H/s (Total Combined Speed)
 Recovered........: 1/1 (100.00%)
-```
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ 
 
 ---
 
 ## 3. JOHN THE RIPPER BCRYPT ROUNDS=12 BENCHMARK (--format=bcrypt)
 
-```text
-$ john --format=bcrypt --wordlist=wordlists/rockyou.txt hashes/bcrypt_hashes.txt
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ john --format=bcrypt --wordlist=wordlists/rockyou.txt hashes/bcrypt_hashes.txt
 Loaded 1 password hash (bcrypt [Blowfish 32/64 X3])
 Cost 1 (iteration count) is 4096 for all loaded hashes
 Will run 4 OpenMP threads
 0g 0:00:00:21 0.01% (ETA: 2026-11-19 06:27) 0g/s 54.97p/s 54.97c/s 54.97C/s curtis..photos
 Session aborted
-```
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ 

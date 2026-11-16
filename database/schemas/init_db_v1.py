@@ -1,7 +1,6 @@
 import sqlite3
 from pathlib import Path
 
-# Resolve path: AuthShield/database/users.db
 DB_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = DB_DIR / "users.db"
 

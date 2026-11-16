@@ -39,7 +39,6 @@ def register():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
-        # INTENTIONALLY WEAK — unsalted MD5. This is the vulnerability for Milestone 1.
         pw_hash = hashlib.md5(password.encode()).hexdigest()
         conn = get_db()
         try:
@@ -64,7 +63,7 @@ def login():
         conn.close()
         if user and user["password_hash"] == pw_hash:
             return "Login successful! Welcome " + username
-        return "incorrect username or password", 200   # Hydra will match this failure string
+        return "incorrect username or password", 200   
     return render_template_string(LOGIN_FORM)
 
 if __name__ == "__main__":
