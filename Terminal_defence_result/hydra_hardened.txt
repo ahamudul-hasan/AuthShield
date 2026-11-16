@@ -1,5 +1,5 @@
 # ==============================================================================
-# AUTHSHIELD - STEP 18: DEFENSE VERIFICATION & HYDRA BRUTE-FORCE MITIGATION
+# AUTHSHIELD - DEFENSE VERIFICATION & HYDRA BRUTE-FORCE MITIGATION
 # ==============================================================================
 # Target Application : app/app_v2_hardened.py (http://<TARGET_IP>:5000/login)
 # Attacking Tool     : Hydra v9.5 (http-post-form brute force)
@@ -24,13 +24,7 @@
 
 ## 2. FAIL2BAN JAIL STATUS AUDIT
 
-Command:
-```text
 prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ sudo fail2ban-client status flaskapp
-```
-
-Output:
-```text
 Status for the jail: flaskapp
 |- Filter
 |  |- Currently failed: 0
@@ -41,18 +35,11 @@ Status for the jail: flaskapp
    |- Total banned:     1
    `- Banned IP list:   <TARGET_IP>
 prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ 
-```
 
 
 ## 3. APPLICATION AUTHENTICATION LOG AUDIT (LAST 20 ATTEMPTS)
 
-Command:
-```text
 prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ tail -20 logs/auth.log
-```
-
-Output:
-```text
 2026-11-13 20:42:59 Failed login attempt for user=testvictim from <TARGET_IP>
 2026-11-13 20:42:59 Failed login attempt for user=testvictim from <TARGET_IP>
 2026-11-13 20:42:59 Failed login attempt for user=testvictim from <TARGET_IP>
@@ -74,18 +61,13 @@ Output:
 2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
 2026-11-13 20:43:00 Failed login attempt for user=testvictim from <TARGET_IP>
 prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ 
-```
+
 
 
 ## 4. RAW HYDRA ATTACK FAILURE LOG
 
-Command:
-```text
-prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ hydra -l testvictim -P wordlists/rockyou.txt <TARGET_IP> -s 5000 http-post-form "/login:username=^USER^&password=^PASS^:S=/verify-mfa"
-```
 
-Output:
-```text
+prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ hydra -l testvictim -P wordlists/rockyou.txt <TARGET_IP> -s 5000 http-post-form "/login:username=^USER^&password=^PASS^:S=/verify-mfa"
 Hydra v9.5 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these *** ignore laws and ethics anyway).
 
 Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2026-11-13 20:42:55
@@ -120,4 +102,3 @@ Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2026-11-13 20:42:
 [ERROR] 1 targets did not complete
 Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2026-11-13 20:43:10
 prianto@prianto:/mnt/c/Work/Trimester/13th trimester/Computer Security/AuthShield$ 
-```
