@@ -1,4 +1,4 @@
-# AuthShield — Milestone 3: Hashing Speed & Crack-Time vs. Work Factor
+# AuthShield — Hashing Speed & Crack-Time vs. Work Factor
 
 > **Lab Hardware Environment:**
 > - **GPU:** NVIDIA GeForce RTX 3060 Ti (CUDA 13.5, 8 GB VRAM, 38 SMs / Compute Units)
