@@ -42,6 +42,8 @@ env/
 
 # Databases & logs
 *.db
+*.db.bak
+backups/
 *.sqlite3
 *.log
 logs/*.log
@@ -50,6 +52,13 @@ logs/*.log
 wordlists/rockyou.txt*
 *.pot
 *.potfile
+
+# Node & Frontend
+node_modules/
+frontend/dist/
+
+# Test cache
+.pytest_cache/
 
 # Operating System files
 .DS_Store
