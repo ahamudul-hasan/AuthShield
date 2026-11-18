@@ -24,9 +24,12 @@ if ! command -v apt >/dev/null 2>&1; then
 fi
 
 # 2. Install Linux system packages from packages.txt
-if [ -f "packages.txt" ] && command -v apt >/dev/null 2>&1; then
-    echo "[+] Updating apt repositories and installing system packages..."
-    PACKAGES=$(grep -v '^[[:space:]]*#' packages.txt | grep -v '^[[:space:]]*$' | tr '\n' ' ')
+PACKAGES_FILE="packages.txt"
+[ ! -f "$PACKAGES_FILE" ] && [ -f "docs/packages.txt" ] && PACKAGES_FILE="docs/packages.txt"
+
+if [ -f "$PACKAGES_FILE" ] && command -v apt >/dev/null 2>&1; then
+    echo "[+] Updating apt repositories and installing system packages from $PACKAGES_FILE..."
+    PACKAGES=$(grep -v '^[[:space:]]*#' "$PACKAGES_FILE" | grep -v '^[[:space:]]*$' | tr '\n' ' ')
     sudo apt update
     sudo apt install -y $PACKAGES
     echo "[✓] System packages installed successfully."

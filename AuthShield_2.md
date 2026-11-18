@@ -100,63 +100,24 @@ internet. Run it bound to `127.0.0.1` only, not `0.0.0.0`.
 
 ## Step 0.1 — Back up the original project
 
-**What this step does:** Creates a safe copy of the original P11 code,
-database, and experiment results.
+**What this step does:** Ensures the original P11 coursework, database, and experiment results are safely preserved.
 
-**Why we do it:** AuthShield 2.0 will change the application structure
-and database. A backup lets you return to the original version if
-something breaks.
+**Status:** The original P11 project is preserved in the dedicated Git branch (`Original_project`) and external repository, so redundant local backup copies are ignored.
 
-**Why it matters:** You can still reproduce your original coursework and
-demonstrate the weak-versus-hardened comparison.
-
-From Ubuntu:
-
-``` bash
-cd ~/p11-auth-project
-
-mkdir -p backups/original-p11
-
-cp -a app database scripts hashes logs results \
-  Terminal_crack_result Terminal_defence_result wordlists requirements.txt \
-  backups/original-p11/
-```
-
-If `cp` reports that a folder does not exist, remove that name from the
-command (or fix it) instead of hiding the error. A silent failure means
-your backup is incomplete.
-
-Also make a separate copy of the SQLite database:
-
-``` bash
-mkdir -p database/backups
-
-cp database/users.db \
-  database/backups/users_before_authshield.db.bak
-```
-
-**Check:** Confirm that the backup contains your original applications,
-database, and results.
+**Check:** Confirm the `Original_project` branch exists and is accessible.
 
 ## Step 0.2 — Save the original version in Git
 
-**What this step does:** Records the current P11 project as a known
-starting point in Git.
+**What this step does:** Records the current project state as a known baseline tag in Git and switches to the upgrade development branch.
 
-**Why we do it:** Git lets you track changes and return to an earlier
-version if a new feature breaks the project.
+**Why we do it:** Git tracks changes and lets you return to earlier commits if any new feature causes issues.
 
-**Why it matters:** You can develop AuthShield 2.0 without losing the
-original working implementation.
+**Why it matters:** You can develop AuthShield 2.0 on a dedicated branch without affecting the legacy coursework.
+
+From the project root:
 
 ``` bash
-cd ~/p11-auth-project
-
-# If Git is not initialized yet:
-git init
-
-# Create .gitignore FIRST, before the first "git add",
-# so databases, secrets, and large files are never committed.
+# Create .gitignore so local databases, secrets, and large files are never committed
 cat >> .gitignore << 'EOF'
 .env
 .venv/
@@ -166,62 +127,109 @@ __pycache__/
 .pytest_cache/
 *.pyc
 *.log
+logs/*.log
 *.db
 *.db.bak
-backups/
 wordlists/rockyou.txt
 EOF
 
-git status
-git add .
+git add .gitignore
 git commit -m "Preserve original P11 project"
 git tag p11-original
 git switch -c authshield-v2
 ```
 
-The SQLite database and the large wordlist are intentionally **not** stored in
-Git. They are preserved by the Step 0.1 backup instead. Only commit cracking
-results and hash files that contain dummy test accounts.
-
-**Check:** Run `git branch` and confirm that you are working on
-`authshield-v2`.
+**Check:** Run `git branch` and confirm that you are working on `authshield-v2`.
 
 ## Step 0.3 — Separate the legacy demonstration from the new application
 
-**What this step does:** Keeps the original weak and hardened
-applications separate from the new AuthShield backend.
+**What this step does:** Moves the original weak and hardened applications, their SQLite database, and coursework documentation into dedicated directories (`legacy/` and `docs/`), keeping the project root organized for the new Flask backend and React frontend.
 
-**Why we do it:** The old applications are coursework demonstrations.
-The new application needs a cleaner structure and safer configuration.
+**Why we do it:** The old applications and audit logs are coursework demonstrations. The new AuthShield platform needs a modular architecture, production-ready structure, and clear separation of concerns.
 
-**Why it matters:** You can continue demonstrating the original attacks
-without mixing vulnerable code into the new authentication system.
+**Why it matters:** You can continue demonstrating the original P11 attacks in an isolated lab without mixing vulnerable code or legacy SQLite databases into the new authentication system.
 
-Suggested structure:
+Project directory structure:
 
 ``` text
-p11-auth-project/
-├── legacy/
-│   ├── app_v1_weak.py
-│   ├── app_v2_hardened.py
-│   └── database/
+AuthShield/
+├── legacy/                       # Isolated P11 Coursework Demonstration Lab
+│   ├── app_v1_weak.py            # Phase 1 weak MD5 login app
+│   ├── app_v2_hardened.py        # Phase 3 hardened bcrypt/Argon2 + lockout + TOTP app
+│   └── database/                 # SQLite coursework database
+│       ├── users.db              # Active SQLite DB for legacy lab
+│       ├── schemas/              # Schema initializers (init_db_v1.py, init_db_v2.py)
+│       ├── seeds/                # Dummy users seed script (seed_users.py)
+│       └── backups/              # Baseline snapshot (users_phase1_weak.db.bak)
 │
-├── backend/
-├── frontend/
-├── scripts/
-├── logs/
-├── results/
-├── docs/
-└── README.md
+├── backend/                      # AuthShield 2.0 Flask REST API & Threat Engine (Stage 1+)
+│   ├── app/
+│   │   ├── auth/                 # Argon2id, bcrypt migration, TOTP, session manager
+│   │   ├── detection/            # Event collector, detection rules, risk scoring engine
+│   │   ├── alerts/               # Alert management endpoints
+│   │   ├── dashboard/            # Metrics & security analytics
+│   │   └── models/               # PostgreSQL models (User, SecurityEvent, Alert, Session)
+│   ├── tests/                    # Automated pytest test suites
+│   ├── migrations/               # Alembic database migrations
+│   ├── requirements.txt          # Backend dependencies
+│   └── run.py                    # Flask development server
+│
+├── frontend/                     # AuthShield 2.0 React + Vite + Tailwind UI (Stage 4+)
+│   ├── src/
+│   │   ├── components/           # UI components (charts, alert cards, badges)
+│   │   ├── pages/                # Login, Register, MFA, Dashboard, Alerts, Sessions
+│   │   └── services/             # API client & WebSocket connections
+│   └── package.json
+│
+├── docs/                         # Coursework specifications, rubrics & guides
+│   ├── Guide.md                  # Comprehensive P11 lab guide
+│   ├── Note.md                   # Lab notes
+│   ├── Topic.md                  # Assignment topic description
+│   ├── work_factor_comparison.md # Hashing work-factor comparison analysis
+│   ├── Evalution_metric.pdf      # Course evaluation criteria
+│   ├── Project_proposal.pdf      # Original project proposal
+│   ├── packages.txt              # Apt package dependencies
+│   └── setup.txt                 # Tool installation notes
+│
+├── scripts/                      # Lab utility scripts
+│   ├── benchmark_hashing.py      # Multi-algorithm hashing benchmark tool
+│   └── dump_hashes.py            # SQLite user hash export utility
+│
+├── hashes/                       # Exported hash dumps for offline cracking
+│   ├── md5_hashes.txt            # Unsalted MD5 user hashes
+│   ├── bcrypt_hashes.txt         # Bcrypt hashes for cracking experiments
+│   └── bcrypt_r10_only.txt / bcrypt_r12_only.txt
+│
+├── results/                      # Experiment outcome summaries & benchmark data
+│   ├── benchmark_hashing.txt
+│   ├── cracked_hashcat.txt
+│   ├── cracked_hydra_weak.txt
+│   └── cracked_john.txt
+│
+├── Terminal_crack_result/        # Raw terminal logs from offline/online cracking
+│   ├── hashcat.txt
+│   ├── hydra_weak.txt
+│   └── john_the_ripper.txt
+│
+├── Terminal_defence_result/      # Raw terminal logs from defense verifications
+│   ├── bcrypt_benchmark.txt
+│   └── hydra_hardened.txt
+│
+├── wordlists/                    # Dictionaries for password cracking tests
+│   └── rockyou.txt
+│
+├── logs/                         # Runtime log directory
+│   └── auth.log                  # Fail2Ban-monitored authentication log
+│
+├── .gitignore                    # Environment & artifact exclusions
+├── README.md                     # Repository overview & setup guide
+├── requirements.txt              # Root legacy virtualenv requirements
+└── setup.sh                      # Automated lab setup script
 ```
 
-Move files only after confirming their current locations and updating
-any scripts that depend on the old paths. Use `git mv` so Git keeps the
-file history. Do not delete the original
-backups.
+Files were moved using `git mv` so Git retains full file histories, and path references in `legacy/app_v1_weak.py`, `legacy/app_v2_hardened.py`, `scripts/dump_hashes.py`, and `setup.sh` were updated to resolve paths accurately.
 
-**Check:** Both old applications should still be runnable in the
-isolated lab.
+**Check:** Both legacy applications must remain fully operational in the isolated lab environment.
 
 ------------------------------------------------------------------------
 
@@ -296,8 +304,7 @@ development easier.
 can be developed and tested separately.
 
 ``` bash
-cd ~/p11-auth-project
-
+# From the project root:
 mkdir -p backend/app/{auth,detection,alerts,dashboard,models}
 mkdir -p backend/tests backend/migrations
 ```
@@ -335,7 +342,7 @@ P11 application. A separate environment avoids package conflicts.
 dependencies without changing the original setup.
 
 ``` bash
-cd ~/p11-auth-project/backend
+cd backend
 
 python3 -m venv .venv
 source .venv/bin/activate
@@ -1434,8 +1441,7 @@ use, demonstrate, and extend.
 From the project root:
 
 ``` bash
-cd ~/p11-auth-project
-
+# From the project root:
 npm create vite@latest frontend -- --template react-ts
 cd frontend
 
@@ -2018,30 +2024,34 @@ Start with these tables and add fields as the application develops.
 
 # 13. Recommended project folder structure
 
-This is the target structure after the upgrade. It is a guide, not a
+This is the target structure of the repository. It is a guide, not a
 requirement to create every file on the first day.
 
 ``` text
-p11-auth-project/
+AuthShield/
 │
-├── legacy/
-│   ├── app_v1_weak.py
-│   ├── app_v2_hardened.py
-│   └── database/
+├── legacy/                       # Isolated P11 Coursework Demonstration Lab
+│   ├── app_v1_weak.py            # Phase 1 weak MD5 login app
+│   ├── app_v2_hardened.py        # Phase 3 hardened bcrypt/Argon2 + lockout + TOTP app
+│   └── database/                 # SQLite coursework database
+│       ├── users.db              # Active SQLite DB for legacy lab
+│       ├── schemas/              # Schema initializers (init_db_v1.py, init_db_v2.py)
+│       ├── seeds/                # Dummy users seed script (seed_users.py)
+│       └── backups/              # Baseline snapshot (users_phase1_weak.db.bak)
 │
-├── backend/
+├── backend/                      # AuthShield 2.0 Flask REST API & Threat Engine (Stage 1+)
 │   ├── app/
-│   │   ├── __init__.py
-│   │   ├── config.py
-│   │   ├── extensions.py
+│   │   ├── __init__.py           # Application factory
+│   │   ├── config.py             # Config classes
+│   │   ├── extensions.py         # SQLAlchemy, Migrate, Limiter, etc.
 │   │   │
-│   │   ├── auth/
+│   │   ├── auth/                 # Authentication & authorization module
 │   │   │   ├── routes.py
 │   │   │   ├── password.py
 │   │   │   ├── mfa.py
 │   │   │   └── sessions.py
 │   │   │
-│   │   ├── detection/
+│   │   ├── detection/            # Threat detection & risk scoring engine
 │   │   │   ├── event_types.py
 │   │   │   ├── event_collector.py
 │   │   │   ├── event_repository.py
@@ -2050,42 +2060,80 @@ p11-auth-project/
 │   │   │   ├── detector.py
 │   │   │   └── alert_manager.py
 │   │   │
-│   │   ├── alerts/
+│   │   ├── alerts/               # Alert management endpoints
 │   │   │   └── routes.py
 │   │   │
-│   │   ├── dashboard/
+│   │   ├── dashboard/            # Dashboard analytics endpoints
 │   │   │   └── routes.py
 │   │   │
-│   │   └── models/
+│   │   └── models/               # PostgreSQL models (Neon Serverless)
 │   │       ├── user.py
 │   │       ├── security_event.py
 │   │       ├── alert.py
 │   │       └── session.py
 │   │
-│   ├── migrations/
-│   ├── tests/
-│   ├── requirements.txt
-│   └── run.py
+│   ├── migrations/               # Alembic database migrations
+│   ├── tests/                    # Pytest automated test suites
+│   ├── requirements.txt          # Backend dependencies
+│   └── run.py                    # Server entry point
 │
-├── frontend/
+├── frontend/                     # AuthShield 2.0 React + TypeScript + Tailwind UI (Stage 4+)
 │   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── layouts/
-│   │   ├── hooks/
-│   │   ├── services/
-│   │   ├── types/
+│   │   ├── components/           # UI components
+│   │   ├── pages/                # Views (Login, Dashboard, Alerts, Sessions, Analytics)
+│   │   ├── layouts/              # Main layout & navigation
+│   │   ├── hooks/                # Custom React hooks
+│   │   ├── services/             # API client & WebSocket connections
+│   │   ├── types/                # TypeScript interfaces
 │   │   └── App.tsx
 │   └── package.json
 │
-├── scripts/
-├── logs/
-├── results/
-├── docs/
-├── backups/
+├── docs/                         # Coursework specifications, rubrics & guides
+│   ├── Guide.md                  # Comprehensive P11 lab guide
+│   ├── Note.md                   # Lab notes
+│   ├── Topic.md                  # Assignment topic description
+│   ├── work_factor_comparison.md # Hashing work-factor comparison analysis
+│   ├── Evalution_metric.pdf      # Course evaluation criteria
+│   ├── Project_proposal.pdf      # Original project proposal
+│   ├── packages.txt              # Apt package dependencies
+│   └── setup.txt                 # Tool installation notes
+│
+├── scripts/                      # Lab utility scripts
+│   ├── benchmark_hashing.py      # Multi-algorithm hashing benchmark tool
+│   └── dump_hashes.py            # SQLite user hash export utility
+│
+├── hashes/                       # Exported hash dumps for offline cracking
+│   ├── md5_hashes.txt            # Unsalted MD5 user hashes
+│   ├── bcrypt_hashes.txt         # Bcrypt hashes for cracking experiments
+│   └── bcrypt_r10_only.txt / bcrypt_r12_only.txt
+│
+├── results/                      # Experiment outcome summaries & benchmark data
+│   ├── benchmark_hashing.txt
+│   ├── cracked_hashcat.txt
+│   ├── cracked_hydra_weak.txt
+│   └── cracked_john.txt
+│
+├── Terminal_crack_result/        # Raw terminal logs from offline/online cracking
+│   ├── hashcat.txt
+│   ├── hydra_weak.txt
+│   └── john_the_ripper.txt
+│
+├── Terminal_defence_result/      # Raw terminal logs from defense verifications
+│   ├── bcrypt_benchmark.txt
+│   └── hydra_hardened.txt
+│
+├── wordlists/                    # Dictionaries for password cracking tests
+│   └── rockyou.txt
+│
+├── logs/                         # Runtime log directory
+│   └── auth.log                  # Fail2Ban-monitored authentication log
+│
 ├── docker-compose.yml
 ├── .gitignore
-└── README.md
+├── README.md
+├── requirements.txt
+├── setup.sh
+└── AuthShield_2.md
 ```
 
 ------------------------------------------------------------------------
