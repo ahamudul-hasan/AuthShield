@@ -108,11 +108,11 @@ internet. Run it bound to `127.0.0.1` only, not `0.0.0.0`.
 
 ## Step 0.2 — Save the original version in Git
 
-**What this step does:** Records the current project state as a known baseline tag in Git and switches to the upgrade development branch.
+**What this step does:** Configures `.gitignore` so local databases, secrets, virtual environments, and large wordlists are kept out of version control.
 
 **Why we do it:** Git tracks changes and lets you return to earlier commits if any new feature causes issues.
 
-**Why it matters:** You can develop AuthShield 2.0 on a dedicated branch without affecting the legacy coursework.
+**Why it matters:** You can develop AuthShield 2.0 cleanly while keeping sensitive and build artifacts excluded.
 
 From the project root:
 
@@ -135,11 +135,9 @@ EOF
 
 git add .gitignore
 git commit -m "Preserve original P11 project"
-git tag p11-original
-git switch -c authshield-v2
 ```
 
-**Check:** Run `git branch` and confirm that you are working on `authshield-v2`.
+**Check:** Run `git status` and confirm the working tree is clean.
 
 ## Step 0.3 — Separate the legacy demonstration from the new application
 
