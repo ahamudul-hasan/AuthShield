@@ -4,9 +4,9 @@ from pathlib import Path
 
 app = Flask(__name__)
 
-# Point directly to the centralized database
-BASE_DIR = Path(__file__).resolve().parent.parent
-DB = str(BASE_DIR / "database" / "users.db")
+# Point directly to the legacy database
+LEGACY_DIR = Path(__file__).resolve().parent
+DB = str(LEGACY_DIR / "database" / "users.db")
 
 LOGIN_FORM = """
 <h2>Login</h2>

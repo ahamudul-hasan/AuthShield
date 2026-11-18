@@ -3,7 +3,9 @@ from pathlib import Path
 
 # Resolve paths relative to project root
 BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_DIR / "database" / "users.db"
+DB_PATH = BASE_DIR / "legacy" / "database" / "users.db"
+if not DB_PATH.exists() and (BASE_DIR / "database" / "users.db").exists():
+    DB_PATH = BASE_DIR / "database" / "users.db"
 OUTPUT_PATH = BASE_DIR / "hashes" / "md5_hashes.txt"
 
 def dump_hashes():

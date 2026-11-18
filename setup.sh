@@ -34,7 +34,7 @@ fi
 
 # 3. Create required single-purpose project directories
 echo "[+] Ensuring project directories exist..."
-mkdir -p app database/{schemas,seeds,backups} hashes logs results scripts Terminal_crack_result wordlists
+mkdir -p legacy/database/{schemas,seeds,backups} hashes logs results scripts Terminal_crack_result wordlists docs
 touch logs/auth.log
 echo "[✓] Project directories and logs/auth.log initialized."
 

@@ -17,9 +17,10 @@ from flask import Flask, redirect, render_template_string, request, session
 app = Flask(__name__)
 app.secret_key = os.environ.get("AUTHSHIELD_SECRET_KEY", "dev-secret-change-me")
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DB = str(BASE_DIR / "database" / "users.db")
-AUTH_LOG = BASE_DIR / "logs" / "auth.log"
+LEGACY_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = LEGACY_DIR.parent
+DB = str(LEGACY_DIR / "database" / "users.db")
+AUTH_LOG = PROJECT_ROOT / "logs" / "auth.log"
 
 HASH_ALGO = os.environ.get("HASH_ALGO", "bcrypt").strip().lower()
 BCRYPT_ROUNDS = int(os.environ.get("BCRYPT_ROUNDS", "12"))
