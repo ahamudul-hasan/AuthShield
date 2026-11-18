@@ -1,13 +1,146 @@
-from flask import Blueprint, jsonify
+from datetime import datetime, timedelta, timezone
+from flask import Blueprint, jsonify, request, current_app
+from app.extensions import db
+from app.models.user import User
+from app.auth.password import (
+    hash_password,
+    verify_password,
+    needs_rehash,
+    identify_algorithm,
+    benchmark_argon2,
+)
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 
 @auth_bp.route("/status", methods=["GET"])
 def auth_status():
-    """Initial auth module status endpoint."""
+    """Report auth module status and algorithm capabilities."""
     return jsonify({
         "status": "ready",
         "module": "auth",
-        "supported_algorithms": ["argon2id", "bcrypt"]
+        "default_algorithm": "argon2id",
+        "supported_algorithms": ["argon2id", "bcrypt"],
     }), 200
+
+
+@auth_bp.route("/register", methods=["POST"])
+def register():
+    """Register a new user with Argon2id password hashing."""
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "").strip()
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "")
+
+    if not username:
+        return jsonify({"error": "Bad Request", "message": "Username is required."}), 400
+    if not email or "@" not in email:
+        return jsonify({"error": "Bad Request", "message": "Valid email is required."}), 400
+    if not password:
+        return jsonify({"error": "Bad Request", "message": "Password is required."}), 400
+
+    # Check for existing username or email
+    if User.query.filter_by(username=username).first():
+        return jsonify({"error": "Conflict", "message": f"Username '{username}' is already registered."}), 409
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "Conflict", "message": f"Email '{email}' is already registered."}), 409
+
+    # Hash with Argon2id
+    encoded_hash = hash_password(password)
+
+    new_user = User(
+        username=username,
+        email=email,
+        password_hash=encoded_hash,
+        password_algorithm="argon2id",
+        role="user",
+        is_active=True,
+    )
+    db.session.add(new_user)
+    db.session.commit()
+
+    return jsonify({
+        "message": "User registered successfully.",
+        "user": new_user.to_dict(),
+        "password_algorithm": new_user.password_algorithm,
+    }), 201
+
+
+@auth_bp.route("/login", methods=["POST"])
+def login():
+    """Verify user password and rehash outdated parameters if needed."""
+    data = request.get_json(silent=True) or {}
+    login_id = data.get("username", "").strip()
+    password = data.get("password", "")
+
+    if not login_id or not password:
+        return jsonify({"error": "Bad Request", "message": "Username/email and password are required."}), 400
+
+    # Look up by username or email
+    user = User.query.filter(
+        (User.username == login_id) | (User.email == login_id.lower())
+    ).first()
+
+    if not user or not user.is_active:
+        return jsonify({"error": "Unauthorized", "message": "Invalid username or password."}), 401
+
+    # Check if account is temporarily locked
+    if user.is_locked:
+        expiry_iso = user.lockout_until.isoformat() if user.lockout_until else ""
+        return jsonify({
+            "error": "Forbidden",
+            "message": f"Account is temporarily locked due to excessive failed attempts. Please try again after {expiry_iso}.",
+            "lockout_until": expiry_iso,
+        }), 403
+
+    # Verify password against stored hash (Argon2id or bcrypt)
+    is_valid = verify_password(password, user.password_hash)
+
+    if not is_valid:
+        # Increment failed attempts
+        max_attempts = current_app.config.get("MAX_FAILED_ATTEMPTS", 5)
+        lockout_minutes = current_app.config.get("LOCKOUT_DURATION_MINUTES", 15)
+
+        user.failed_attempts += 1
+        if user.failed_attempts >= max_attempts:
+            user.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=lockout_minutes)
+        db.session.commit()
+
+        remaining = max(0, max_attempts - user.failed_attempts)
+        return jsonify({
+            "error": "Unauthorized",
+            "message": "Invalid username or password.",
+            "attempts_remaining": remaining if remaining > 0 else 0,
+            "locked": user.is_locked,
+        }), 401
+
+    # Successful authentication
+    user.failed_attempts = 0
+    user.lockout_until = None
+    user.last_login_at = datetime.now(timezone.utc)
+
+    # Check if hash needs upgrade (e.g. from bcrypt or weaker Argon2 params)
+    hash_upgraded = False
+    if needs_rehash(user.password_hash):
+        user.password_hash = hash_password(password)
+        user.password_algorithm = "argon2id"
+        hash_upgraded = True
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Login successful.",
+        "user": user.to_dict(),
+        "password_algorithm": user.password_algorithm,
+        "hash_upgraded": hash_upgraded,
+    }), 200
+
+
+@auth_bp.route("/benchmark", methods=["GET"])
+def benchmark():
+    """Benchmark Argon2id execution on the current machine."""
+    iterations = request.args.get("iterations", 3, type=int)
+    # Bound iterations to avoid excessive load
+    iterations = max(1, min(iterations, 20))
+    results = benchmark_argon2(iterations=iterations)
+    return jsonify(results), 200

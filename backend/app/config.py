@@ -24,6 +24,17 @@ class Config:
     WTF_CSRF_ENABLED = os.environ.get("WTF_CSRF_ENABLED", "False").lower() == "true"
     WTF_CSRF_TIME_LIMIT = None
 
+    # Argon2id Hashing Parameters (OWASP recommended baseline)
+    ARGON2_TIME_COST = int(os.environ.get("ARGON2_TIME_COST", 2))
+    ARGON2_MEMORY_COST = int(os.environ.get("ARGON2_MEMORY_COST", 19456))  # 19 MiB
+    ARGON2_PARALLELISM = int(os.environ.get("ARGON2_PARALLELISM", 1))
+    ARGON2_HASH_LEN = int(os.environ.get("ARGON2_HASH_LEN", 32))
+    ARGON2_SALT_LEN = int(os.environ.get("ARGON2_SALT_LEN", 16))
+
+    # Account Lockout Policy (5 failed attempts, 15-minute temporary lockout)
+    MAX_FAILED_ATTEMPTS = int(os.environ.get("MAX_FAILED_ATTEMPTS", 5))
+    LOCKOUT_DURATION_MINUTES = int(os.environ.get("LOCKOUT_DURATION_MINUTES", 15))
+
 
 class DevelopmentConfig(Config):
     """Development environment configuration."""

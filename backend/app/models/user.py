@@ -40,11 +40,9 @@ class User(db.Model):
         """Return True if account has an active temporary lockout."""
         if not self.lockout_until:
             return False
-        now = datetime.now(timezone.utc)
-        # Handle timezone-naive datetimes if encountered
-        if self.lockout_until.tzinfo is None:
-            now = datetime.now()
-        return self.lockout_until > now
+        if self.lockout_until.tzinfo is not None:
+            return self.lockout_until > datetime.now(timezone.utc)
+        return self.lockout_until > datetime.now(timezone.utc).replace(tzinfo=None)
 
     def to_dict(self, include_admin_fields: bool = False) -> dict:
         """Return safe user dictionary excluding sensitive credentials."""
