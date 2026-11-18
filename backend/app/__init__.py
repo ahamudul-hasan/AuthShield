@@ -23,6 +23,9 @@ def create_app(config_name=None):
     cors.init_app(app, supports_credentials=True)
     limiter.init_app(app)
 
+    # Import models for SQLAlchemy and Alembic migrations
+    from app import models  # noqa: F401
+
     # Register blueprints
     app.register_blueprint(auth_bp)
     app.register_blueprint(alerts_bp)
