@@ -31,20 +31,26 @@ def create_app(config_name=None):
     # Register JSON error handlers
     register_error_handlers(app)
 
-    # Health check endpoint
+    # Health check & database readiness endpoint (Step 1.6)
     @app.route("/api/health", methods=["GET"])
     def health_check():
-        db_status = "ok"
+        db_status = "connected"
+        http_status = 200
+        overall_status = "ok"
+
         try:
             from sqlalchemy import text
             db.session.execute(text("SELECT 1"))
         except Exception:
             db_status = "unreachable"
+            overall_status = "degraded"
+            http_status = 503
 
         return jsonify({
-            "status": "ok",
+            "status": overall_status,
             "service": "authshield-backend",
+            "version": "2.0.0",
             "database": db_status
-        }), 200
+        }), http_status
 
     return app
