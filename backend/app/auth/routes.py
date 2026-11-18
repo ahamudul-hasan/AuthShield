@@ -9,6 +9,7 @@ from app.auth.password import (
     identify_algorithm,
     benchmark_argon2,
 )
+from app.auth.validator import validate_password
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -44,6 +45,15 @@ def register():
         return jsonify({"error": "Conflict", "message": f"Username '{username}' is already registered."}), 409
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "Conflict", "message": f"Email '{email}' is already registered."}), 409
+
+    # Validate password quality and strength against NIST SP 800-63B standards
+    validation = validate_password(password, username=username, email=email)
+    if not validation["is_valid"]:
+        return jsonify({
+            "error": "Bad Request",
+            "message": "Password does not meet security requirements.",
+            "details": validation,
+        }), 400
 
     # Hash with Argon2id
     encoded_hash = hash_password(password)
@@ -144,3 +154,72 @@ def benchmark():
     iterations = max(1, min(iterations, 20))
     results = benchmark_argon2(iterations=iterations)
     return jsonify(results), 200
+
+
+@auth_bp.route("/validate-password", methods=["POST"])
+def validate_pwd():
+    """Evaluate password strength and return real-time analysis and feedback."""
+    data = request.get_json(silent=True) or {}
+    password = data.get("password", "")
+    username = data.get("username", "")
+    email = data.get("email", "")
+
+    result = validate_password(password, username=username, email=email)
+    return jsonify(result), 200
+
+
+@auth_bp.route("/change-password", methods=["POST"])
+def change_password():
+    """Change user password after validating old password and testing new password strength."""
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "").strip()
+    current_pwd = data.get("current_password", "")
+    new_pwd = data.get("new_password", "")
+
+    if not username or not current_pwd or not new_pwd:
+        return jsonify({
+            "error": "Bad Request",
+            "message": "Username, current password, and new password are required."
+        }), 400
+
+    user = User.query.filter_by(username=username).first()
+    if not user or not user.is_active:
+        return jsonify({"error": "Unauthorized", "message": "Invalid username or password."}), 401
+
+    if user.is_locked:
+        expiry_iso = user.lockout_until.isoformat() if user.lockout_until else ""
+        return jsonify({
+            "error": "Forbidden",
+            "message": f"Account is temporarily locked. Please try again after {expiry_iso}.",
+        }), 403
+
+    if not verify_password(current_pwd, user.password_hash):
+        user.failed_attempts += 1
+        db.session.commit()
+        return jsonify({"error": "Unauthorized", "message": "Current password is incorrect."}), 401
+
+    if current_pwd == new_pwd:
+        return jsonify({
+            "error": "Bad Request",
+            "message": "New password cannot be the same as the current password."
+        }), 400
+
+    # Validate new password strength
+    validation = validate_password(new_pwd, username=user.username, email=user.email)
+    if not validation["is_valid"]:
+        return jsonify({
+            "error": "Bad Request",
+            "message": "New password does not meet security requirements.",
+            "details": validation,
+        }), 400
+
+    user.password_hash = hash_password(new_pwd)
+    user.password_algorithm = "argon2id"
+    user.password_changed_at = datetime.now(timezone.utc)
+    user.failed_attempts = 0
+    db.session.commit()
+
+    return jsonify({
+        "message": "Password changed successfully.",
+        "password_algorithm": user.password_algorithm,
+    }), 200

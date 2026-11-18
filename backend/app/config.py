@@ -35,6 +35,11 @@ class Config:
     MAX_FAILED_ATTEMPTS = int(os.environ.get("MAX_FAILED_ATTEMPTS", 5))
     LOCKOUT_DURATION_MINUTES = int(os.environ.get("LOCKOUT_DURATION_MINUTES", 15))
 
+    # Password Validation Policy (NIST SP 800-63B compliant)
+    PASSWORD_MIN_LENGTH = int(os.environ.get("PASSWORD_MIN_LENGTH", 10))
+    PASSWORD_MAX_LENGTH = int(os.environ.get("PASSWORD_MAX_LENGTH", 128))
+    PASSWORD_MIN_SCORE = int(os.environ.get("PASSWORD_MIN_SCORE", 2))
+
 
 class DevelopmentConfig(Config):
     """Development environment configuration."""
