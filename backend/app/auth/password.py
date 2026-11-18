@@ -34,11 +34,11 @@ def get_argon2_hasher() -> PasswordHasher:
 
 def identify_algorithm(stored_hash: str) -> str:
     """Identify the hashing algorithm from the stored hash string prefix."""
-    if not stored_hash:
+    if not stored_hash or not isinstance(stored_hash, str):
         return "unknown"
     if stored_hash.startswith("$argon2"):
         return "argon2id"
-    if stored_hash.startswith(("$2a$", "$2b$", "$2y$")):
+    if stored_hash.startswith(("$2a$", "$2b$", "$2y$", "$2x$")):
         return "bcrypt"
     if len(stored_hash) == 32 and all(c in "0123456789abcdefABCDEF" for c in stored_hash):
         return "md5"
@@ -82,9 +82,9 @@ def verify_password(plain_password: str, stored_hash: str) -> bool:
 def needs_rehash(stored_hash: str) -> bool:
     """
     Check if a stored hash needs to be upgraded to current Argon2id parameters.
-    Returns True if the hash is bcrypt or uses older Argon2 parameters.
+    Returns True if the hash is bcrypt, md5, or uses older Argon2 parameters.
     """
-    if not stored_hash:
+    if not stored_hash or not isinstance(stored_hash, str):
         return True
 
     algo = identify_algorithm(stored_hash)
