@@ -46,6 +46,9 @@ class Config:
     MFA_ENCRYPTION_KEY = os.environ.get("MFA_ENCRYPTION_KEY", None)
     MFA_VALID_WINDOW = int(os.environ.get("MFA_VALID_WINDOW", 1))  # ±30s clock skew tolerance
 
+    # Recovery Codes Configuration
+    RECOVERY_CODE_COUNT = int(os.environ.get("RECOVERY_CODE_COUNT", 8))
+
 
 class DevelopmentConfig(Config):
     """Development environment configuration."""

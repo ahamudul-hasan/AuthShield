@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from flask import Blueprint, jsonify, request, current_app
 from app.extensions import db, limiter
 from app.models.user import User
+from app.models.recovery_code import RecoveryCode
 from app.auth.password import (
     hash_password,
     verify_password,
@@ -21,6 +22,11 @@ from app.auth.mfa import (
     verify_pending_mfa_token,
     generate_mfa_setup_token,
     verify_mfa_setup_token,
+)
+from app.auth.recovery import (
+    generate_user_recovery_codes,
+    verify_and_consume_recovery_code,
+    get_remaining_recovery_codes_count,
 )
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
@@ -410,11 +416,16 @@ def mfa_enable():
     user.totp_secret = encrypted_secret
     user.mfa_enabled = True
     user.last_totp_step = matched_step
+
+    # Generate one-time recovery codes (Step 2.6)
+    recovery_codes = generate_user_recovery_codes(user.id)
     db.session.commit()
 
     return jsonify({
-        "message": "Multi-factor authentication enabled successfully.",
+        "message": "Multi-factor authentication enabled successfully. Save your backup recovery codes now.",
         "mfa_enabled": True,
+        "recovery_codes": recovery_codes,
+        "warning": "Store these recovery codes in a secure location. They will only be displayed once.",
     }), 200
 
 
@@ -467,9 +478,150 @@ def mfa_disable():
     user.totp_secret = None
     user.last_totp_step = None
     user.failed_attempts = 0
+    # Invalidate recovery codes since MFA is disabled
+    RecoveryCode.query.filter_by(user_id=user.id).delete()
     db.session.commit()
 
     return jsonify({
         "message": "Multi-factor authentication disabled successfully.",
         "mfa_enabled": False,
+    }), 200
+
+
+@auth_bp.route("/recovery", methods=["POST"])
+@limiter.limit("5 per minute")
+def recovery_login():
+    """
+    Log in using a one-time recovery code when authenticator device is lost.
+    Marks recovery code as used, authenticates user, and deactivates lost MFA
+    device so user is prompted to re-enroll.
+    """
+    data = request.get_json(silent=True) or {}
+    mfa_token = data.get("mfa_token", "").strip()
+    recovery_code = data.get("recovery_code", "").strip()
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+
+    if not recovery_code:
+        return jsonify({
+            "error": "Bad Request",
+            "message": "Recovery code is required."
+        }), 400
+
+    user = None
+    # Mode 1: From pending MFA login state
+    if mfa_token:
+        user_id = verify_pending_mfa_token(mfa_token)
+        if user_id:
+            user = db.session.get(User, user_id)
+
+    # Mode 2: Direct username + password re-authentication fallback
+    if not user and username and password:
+        candidate = User.query.filter(
+            (User.username == username) | (User.email == username.lower())
+        ).first()
+        if candidate and candidate.is_active and verify_password(password, candidate.password_hash):
+            user = candidate
+
+    if not user or not user.is_active:
+        return jsonify({
+            "error": "Unauthorized",
+            "message": "Invalid or expired recovery session. Please provide valid login credentials."
+        }), 401
+
+    if user.is_locked:
+        expiry_iso = user.lockout_until.isoformat() if user.lockout_until else ""
+        return jsonify({
+            "error": "Forbidden",
+            "message": f"Account is temporarily locked. Please try again after {expiry_iso}.",
+        }), 403
+
+    # Verify and consume the one-time recovery code
+    is_valid, message = verify_and_consume_recovery_code(user.id, recovery_code)
+
+    if not is_valid:
+        max_attempts = current_app.config.get("MAX_FAILED_ATTEMPTS", 5)
+        lockout_minutes = current_app.config.get("LOCKOUT_DURATION_MINUTES", 15)
+        user.failed_attempts += 1
+        if user.failed_attempts >= max_attempts:
+            user.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=lockout_minutes)
+        db.session.commit()
+
+        return jsonify({
+            "error": "Unauthorized",
+            "message": message,
+            "attempts_remaining": max(0, max_attempts - user.failed_attempts),
+            "locked": user.is_locked,
+        }), 401
+
+    # Requirement 5: Require user to re-enroll MFA if authenticator is lost.
+    # Deactivate the lost MFA authenticator on successful recovery
+    user.mfa_enabled = False
+    user.totp_secret = None
+    user.last_totp_step = None
+    user.failed_attempts = 0
+    user.lockout_until = None
+    user.last_login_at = datetime.now(timezone.utc)
+
+    # Invalidate remaining codes since MFA is deactivated and will be re-enrolled
+    RecoveryCode.query.filter_by(user_id=user.id).delete()
+    db.session.commit()
+
+    return jsonify({
+        "message": "Recovery code accepted. Login successful. Your lost MFA device has been deactivated. Please re-enroll MFA immediately.",
+        "authenticated": True,
+        "mfa_reset": True,
+        "require_mfa_re_enroll": True,
+        "user": user.to_dict(),
+    }), 200
+
+
+@auth_bp.route("/mfa/recovery-codes/regenerate", methods=["POST"])
+@limiter.limit("5 per minute")
+def regenerate_recovery_codes():
+    """Regenerate a fresh set of one-time recovery codes for an MFA-enabled user."""
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+
+    if not username or not password:
+        return jsonify({
+            "error": "Bad Request",
+            "message": "Username and password are required for reauthentication."
+        }), 400
+
+    user = User.query.filter_by(username=username).first()
+    if not user or not user.is_active or not verify_password(password, user.password_hash):
+        return jsonify({"error": "Unauthorized", "message": "Invalid username or password."}), 401
+
+    if not user.mfa_enabled:
+        return jsonify({
+            "error": "Bad Request",
+            "message": "Cannot generate recovery codes: MFA is not enabled on this account."
+        }), 400
+
+    new_codes = generate_user_recovery_codes(user.id, invalidate_existing=True)
+
+    return jsonify({
+        "message": "New recovery codes generated successfully. Previous codes have been invalidated.",
+        "recovery_codes": new_codes,
+        "warning": "Store these codes in a secure location. They will only be displayed once.",
+    }), 200
+
+
+@auth_bp.route("/mfa/recovery-codes/status", methods=["GET"])
+def recovery_codes_status():
+    """Return count of remaining unused recovery codes."""
+    username = request.args.get("username", "").strip()
+    if not username:
+        return jsonify({"error": "Bad Request", "message": "Username is required."}), 400
+
+    user = User.query.filter_by(username=username).first()
+    if not user or not user.is_active:
+        return jsonify({"error": "NotFound", "message": "User not found."}), 404
+
+    count = get_remaining_recovery_codes_count(user.id)
+    return jsonify({
+        "mfa_enabled": user.mfa_enabled,
+        "remaining_recovery_codes": count,
     }), 200
