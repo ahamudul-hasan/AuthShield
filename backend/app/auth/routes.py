@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta, timezone
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app, g
 from app.extensions import db, limiter
 from app.models.user import User
 from app.models.recovery_code import RecoveryCode
+from app.models.session import UserSession
 from app.auth.password import (
     hash_password,
     verify_password,
@@ -27,6 +28,19 @@ from app.auth.recovery import (
     generate_user_recovery_codes,
     verify_and_consume_recovery_code,
     get_remaining_recovery_codes_count,
+)
+from app.auth.session_manager import (
+    create_session,
+    get_session_by_token,
+    revoke_session,
+    revoke_other_sessions,
+    revoke_all_sessions,
+    set_session_cookie,
+    clear_session_cookie,
+    get_token_from_request,
+    generate_csrf_token,
+    login_required,
+    hash_session_token,
 )
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
@@ -169,13 +183,21 @@ def login():
     user.last_login_at = datetime.now(timezone.utc)
     db.session.commit()
 
-    return jsonify({
+    # Step 2.7: Establish server-side session and set secure HttpOnly cookie
+    user_agent_str = request.headers.get("User-Agent", "")
+    ip_addr = request.remote_addr
+    session_obj, raw_token = create_session(user.id, ip_address=ip_addr, user_agent=user_agent_str)
+
+    resp = jsonify({
         "message": "Login successful.",
         "mfa_required": False,
         "user": user.to_dict(),
         "password_algorithm": user.password_algorithm,
         "hash_upgraded": hash_upgraded,
-    }), 200
+        "session_token": raw_token,
+        "session": session_obj.to_dict(is_current=True),
+    })
+    return set_session_cookie(resp, raw_token), 200
 
 
 @auth_bp.route("/benchmark", methods=["GET"])
@@ -251,6 +273,12 @@ def change_password():
     user.failed_attempts = 0
     db.session.commit()
 
+    # Step 2.7 Task 8: Revoke other sessions after a password change
+    token = get_token_from_request()
+    current_sess = get_session_by_token(token) if token else None
+    current_sess_id = current_sess.id if current_sess else None
+    revoke_other_sessions(user.id, current_session_id=current_sess_id)
+
     return jsonify({
         "message": "Password changed successfully.",
         "password_algorithm": user.password_algorithm,
@@ -323,11 +351,19 @@ def verify_mfa():
     user.last_login_at = datetime.now(timezone.utc)
     db.session.commit()
 
-    return jsonify({
+    # Step 2.7: Establish server-side session and set secure HttpOnly cookie
+    user_agent_str = request.headers.get("User-Agent", "")
+    ip_addr = request.remote_addr
+    session_obj, raw_token = create_session(user.id, ip_address=ip_addr, user_agent=user_agent_str)
+
+    resp = jsonify({
         "message": "MFA verification successful. Login complete.",
         "user": user.to_dict(),
         "authenticated": True,
-    }), 200
+        "session_token": raw_token,
+        "session": session_obj.to_dict(is_current=True),
+    })
+    return set_session_cookie(resp, raw_token), 200
 
 
 @auth_bp.route("/mfa/setup", methods=["POST"])
@@ -482,6 +518,12 @@ def mfa_disable():
     RecoveryCode.query.filter_by(user_id=user.id).delete()
     db.session.commit()
 
+    # Step 2.7 Task 8: Revoke other sessions when MFA is disabled
+    token = get_token_from_request()
+    current_sess = get_session_by_token(token) if token else None
+    current_sess_id = current_sess.id if current_sess else None
+    revoke_other_sessions(user.id, current_session_id=current_sess_id)
+
     return jsonify({
         "message": "Multi-factor authentication disabled successfully.",
         "mfa_enabled": False,
@@ -567,13 +609,21 @@ def recovery_login():
     RecoveryCode.query.filter_by(user_id=user.id).delete()
     db.session.commit()
 
-    return jsonify({
+    # Step 2.7: Establish server-side session and set secure HttpOnly cookie
+    user_agent_str = request.headers.get("User-Agent", "")
+    ip_addr = request.remote_addr
+    session_obj, raw_token = create_session(user.id, ip_address=ip_addr, user_agent=user_agent_str)
+
+    resp = jsonify({
         "message": "Recovery code accepted. Login successful. Your lost MFA device has been deactivated. Please re-enroll MFA immediately.",
         "authenticated": True,
         "mfa_reset": True,
         "require_mfa_re_enroll": True,
         "user": user.to_dict(),
-    }), 200
+        "session_token": raw_token,
+        "session": session_obj.to_dict(is_current=True),
+    })
+    return set_session_cookie(resp, raw_token), 200
 
 
 @auth_bp.route("/mfa/recovery-codes/regenerate", methods=["POST"])
@@ -625,3 +675,85 @@ def recovery_codes_status():
         "mfa_enabled": user.mfa_enabled,
         "remaining_recovery_codes": count,
     }), 200
+
+
+@auth_bp.route("/csrf", methods=["GET"])
+def get_csrf():
+    """Return a CSRF token for state-changing requests."""
+    token = get_token_from_request()
+    sess = get_session_by_token(token) if token else None
+    sess_id = sess.id if sess else 0
+    csrf_token = generate_csrf_token(sess_id)
+    return jsonify({"csrf_token": csrf_token}), 200
+
+
+@auth_bp.route("/me", methods=["GET"])
+@login_required
+def get_me():
+    """Return the currently authenticated user and active session."""
+    return jsonify({
+        "user": g.current_user.to_dict(),
+        "session": g.current_session.to_dict(is_current=True),
+    }), 200
+
+
+@auth_bp.route("/sessions", methods=["GET"])
+@login_required
+def list_sessions():
+    """List all active sessions for the current authenticated user."""
+    sessions = UserSession.query.filter(
+        UserSession.user_id == g.current_user.id,
+        UserSession.is_revoked == False  # noqa: E712
+    ).order_by(UserSession.created_at.desc()).all()
+
+    active_sessions = []
+    for s in sessions:
+        if s.is_valid:
+            active_sessions.append(s.to_dict(is_current=(s.id == g.current_session.id)))
+
+    return jsonify({
+        "sessions": active_sessions,
+        "total": len(active_sessions),
+    }), 200
+
+
+@auth_bp.route("/sessions/<int:session_id>", methods=["DELETE"])
+@login_required
+def revoke_single_session(session_id: int):
+    """Revoke an individual session belonging to the user."""
+    success = revoke_session(session_id, g.current_user.id)
+    if not success:
+        return jsonify({"error": "NotFound", "message": "Session not found or already revoked."}), 404
+
+    resp = jsonify({"message": f"Session {session_id} has been revoked."})
+    if session_id == g.current_session.id:
+        clear_session_cookie(resp)
+
+    return resp, 200
+
+
+@auth_bp.route("/sessions", methods=["DELETE"])
+@login_required
+def revoke_other_user_sessions():
+    """Revoke all other active sessions except the current one."""
+    revoked_count = revoke_other_sessions(g.current_user.id, current_session_id=g.current_session.id)
+    return jsonify({
+        "message": f"Revoked {revoked_count} other active session(s).",
+        "revoked_count": revoked_count,
+    }), 200
+
+
+@auth_bp.route("/logout", methods=["POST"])
+def logout():
+    """Log out: revoke current server-side session and clear session cookie."""
+    token = get_token_from_request()
+    if token:
+        token_hash = hash_session_token(token)
+        sess = UserSession.query.filter_by(session_hash=token_hash).first()
+        if sess:
+            sess.is_revoked = True
+            sess.revoked_at = datetime.now(timezone.utc)
+            db.session.commit()
+
+    resp = jsonify({"message": "Logout successful."})
+    return clear_session_cookie(resp), 200

@@ -15,10 +15,13 @@ class Config:
     RATELIMIT_STORAGE_URI = "memory://"
 
     # Session security
+    SESSION_COOKIE_NAME = os.environ.get("SESSION_COOKIE_NAME", "authshield_session")
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "False").lower() == "true"
-    PERMANENT_SESSION_LIFETIME = int(os.environ.get("SESSION_LIFETIME_SECONDS", 3600))
+    SESSION_LIFETIME_SECONDS = int(os.environ.get("SESSION_LIFETIME_SECONDS", 86400))
+    SESSION_IDLE_TIMEOUT_SECONDS = int(os.environ.get("SESSION_IDLE_TIMEOUT_SECONDS", 3600))
+    PERMANENT_SESSION_LIFETIME = SESSION_LIFETIME_SECONDS
 
     # CSRF protection
     WTF_CSRF_ENABLED = os.environ.get("WTF_CSRF_ENABLED", "False").lower() == "true"
