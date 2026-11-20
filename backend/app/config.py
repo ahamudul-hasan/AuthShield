@@ -40,6 +40,12 @@ class Config:
     PASSWORD_MAX_LENGTH = int(os.environ.get("PASSWORD_MAX_LENGTH", 128))
     PASSWORD_MIN_SCORE = int(os.environ.get("PASSWORD_MIN_SCORE", 2))
 
+    # TOTP MFA & Encryption at Rest Configuration
+    MFA_ISSUER_NAME = os.environ.get("MFA_ISSUER_NAME", "AuthShield 2.0")
+    MFA_TOKEN_EXPIRY_SECONDS = int(os.environ.get("MFA_TOKEN_EXPIRY_SECONDS", 300))  # 5 minutes
+    MFA_ENCRYPTION_KEY = os.environ.get("MFA_ENCRYPTION_KEY", None)
+    MFA_VALID_WINDOW = int(os.environ.get("MFA_VALID_WINDOW", 1))  # ±30s clock skew tolerance
+
 
 class DevelopmentConfig(Config):
     """Development environment configuration."""

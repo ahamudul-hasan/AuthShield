@@ -14,6 +14,7 @@ class User(db.Model):
     role = db.Column(db.String(32), nullable=False, default="user")
     totp_secret = db.Column(db.String(255), nullable=True)
     mfa_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    last_totp_step = db.Column(db.BigInteger, nullable=True)
     failed_attempts = db.Column(db.Integer, nullable=False, default=0)
     lockout_until = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(

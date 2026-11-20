@@ -16,6 +16,7 @@ from app import create_app
 from app.extensions import db
 from app.models.user import User
 from app.auth.password import hash_password
+from app.auth.mfa import encrypt_totp_secret
 
 def seed_neon_database():
     print("================================================================")
@@ -183,6 +184,9 @@ def seed_neon_database():
             else:
                 pwd_hash = hash_password(item["plain_pwd"])
             
+            # Encrypt TOTP secret at rest if present
+            stored_totp = encrypt_totp_secret(item["totp_secret"]) if item.get("totp_secret") else None
+
             if existing:
                 # Update existing record
                 existing.email = item["email"]
@@ -190,7 +194,7 @@ def seed_neon_database():
                 existing.password_algorithm = item["algorithm"]
                 existing.role = item["role"]
                 existing.mfa_enabled = item["mfa_enabled"]
-                existing.totp_secret = item["totp_secret"]
+                existing.totp_secret = stored_totp
                 existing.failed_attempts = item["failed_attempts"]
                 existing.lockout_until = item["lockout_until"]
                 existing.is_active = item["is_active"]
@@ -206,7 +210,7 @@ def seed_neon_database():
                     password_algorithm=item["algorithm"],
                     role=item["role"],
                     mfa_enabled=item["mfa_enabled"],
-                    totp_secret=item["totp_secret"],
+                    totp_secret=stored_totp,
                     failed_attempts=item["failed_attempts"],
                     lockout_until=item["lockout_until"],
                     is_active=item["is_active"],
