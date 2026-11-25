@@ -71,11 +71,18 @@ def auth_status():
 
 @auth_bp.route("/register", methods=["POST"])
 def register():
-    """Register a new user with Argon2id password hashing."""
+    """Register a new user with Argon2id password hashing. Never accepts role assignment."""
     data = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
     email = data.get("email", "").strip().lower()
     password = data.get("password", "")
+
+    # Step 2.9: Never accept a role value from public registration
+    if "role" in data and data.get("role") is not None:
+        return jsonify({
+            "error": "Forbidden",
+            "message": "Role assignment is not allowed during public registration.",
+        }), 403
 
     if not username:
         return jsonify({"error": "Bad Request", "message": "Username is required."}), 400

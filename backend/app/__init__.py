@@ -6,6 +6,8 @@ from app.errors import register_error_handlers
 from app.auth.routes import auth_bp
 from app.alerts.routes import alerts_bp
 from app.dashboard.routes import dashboard_bp
+from app.admin.routes import admin_bp
+from app.cli import register_cli_commands
 
 
 def create_app(config_name=None):
@@ -30,6 +32,10 @@ def create_app(config_name=None):
     app.register_blueprint(auth_bp)
     app.register_blueprint(alerts_bp)
     app.register_blueprint(dashboard_bp)
+    app.register_blueprint(admin_bp)
+
+    # Register Flask CLI commands
+    register_cli_commands(app)
 
     # Register JSON error handlers
     register_error_handlers(app)
