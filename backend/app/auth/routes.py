@@ -42,6 +42,17 @@ from app.auth.session_manager import (
     login_required,
     hash_session_token,
 )
+from app.auth.reset import (
+    create_password_reset_token,
+    send_reset_email_dev_console,
+    verify_reset_token,
+    consume_reset_token,
+)
+from app.detection.events import (
+    record_security_event,
+    EVENT_PASSWORD_RESET_REQUESTED,
+    EVENT_PASSWORD_RESET_COMPLETED,
+)
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -757,3 +768,117 @@ def logout():
 
     resp = jsonify({"message": "Logout successful."})
     return clear_session_cookie(resp), 200
+
+
+@auth_bp.route("/forgot-password", methods=["POST"])
+@limiter.limit("5 per minute")
+def forgot_password():
+    """
+    Accept a password reset request (Step 2.8).
+    Returns a generic response whether or not the account exists to prevent enumeration.
+    Generates a random token, stores only its SHA-256 hash, and dispatches via dev console.
+    """
+    data = request.get_json(silent=True) or {}
+    email = data.get("email", "").strip().lower()
+
+    if not email or "@" not in email:
+        return jsonify({
+            "error": "Bad Request",
+            "message": "A valid email address is required.",
+        }), 400
+
+    user = User.query.filter_by(email=email).first()
+    ip_addr = request.remote_addr
+
+    if user and user.is_active:
+        raw_token = create_password_reset_token(user, ip_address=ip_addr)
+        send_reset_email_dev_console(user.email, raw_token)
+        record_security_event(
+            EVENT_PASSWORD_RESET_REQUESTED,
+            user_id=user.id,
+            username=user.username,
+            ip_address=ip_addr,
+            details={"account_found": True},
+        )
+    else:
+        record_security_event(
+            EVENT_PASSWORD_RESET_REQUESTED,
+            user_id=None,
+            username=None,
+            ip_address=ip_addr,
+            details={"account_found": False},
+        )
+
+    return jsonify({
+        "message": "If an account with that email exists, a password reset link has been sent."
+    }), 200
+
+
+@auth_bp.route("/reset-password", methods=["POST"])
+@limiter.limit("5 per minute")
+def reset_password():
+    """
+    Complete password reset using a valid single-use reset token (Step 2.8).
+    Hashes new password with Argon2id, revokes all active sessions, records a security event,
+    and preserves MFA requirements on subsequent logins.
+    """
+    data = request.get_json(silent=True) or {}
+    raw_token = data.get("token", "").strip()
+    new_password = data.get("new_password", "")
+
+    if not raw_token or not new_password:
+        return jsonify({
+            "error": "Bad Request",
+            "message": "Reset token and new password are required.",
+        }), 400
+
+    token_record, reason = verify_reset_token(raw_token)
+    if not token_record:
+        return jsonify({
+            "error": "Bad Request",
+            "message": reason,
+        }), 400
+
+    user = db.session.get(User, token_record.user_id)
+    if not user or not user.is_active:
+        return jsonify({
+            "error": "Bad Request",
+            "message": "Invalid or expired password reset token.",
+        }), 400
+
+    # Validate password strength before consuming token
+    validation = validate_password(new_password, username=user.username, email=user.email)
+    if not validation["is_valid"]:
+        return jsonify({
+            "error": "Bad Request",
+            "message": "New password does not meet security requirements.",
+            "details": validation,
+        }), 400
+
+    now = datetime.now(timezone.utc)
+    user.password_hash = hash_password(new_password)
+    user.password_algorithm = "argon2id"
+    user.password_changed_at = now
+    user.failed_attempts = 0
+    user.lockout_until = None
+
+    # Mark token single-use consumed
+    consume_reset_token(token_record)
+
+    # Revoke all active sessions after successful password reset
+    revoked_count = revoke_all_sessions(user.id)
+    db.session.commit()
+
+    record_security_event(
+        EVENT_PASSWORD_RESET_COMPLETED,
+        user_id=user.id,
+        username=user.username,
+        ip_address=request.remote_addr,
+        details={"revoked_sessions": revoked_count, "mfa_preserved": user.mfa_enabled},
+    )
+
+    return jsonify({
+        "message": "Password has been reset successfully. All existing sessions have been revoked. Please log in with your new password.",
+        "mfa_required_on_next_login": user.mfa_enabled,
+        "revoked_sessions": revoked_count,
+    }), 200

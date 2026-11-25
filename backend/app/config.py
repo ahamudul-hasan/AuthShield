@@ -52,6 +52,10 @@ class Config:
     # Recovery Codes Configuration
     RECOVERY_CODE_COUNT = int(os.environ.get("RECOVERY_CODE_COUNT", 8))
 
+    # Password Reset Configuration
+    PASSWORD_RESET_TOKEN_EXPIRY_SECONDS = int(os.environ.get("PASSWORD_RESET_TOKEN_EXPIRY_SECONDS", 900))  # 15 minutes
+    FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+
 
 class DevelopmentConfig(Config):
     """Development environment configuration."""
