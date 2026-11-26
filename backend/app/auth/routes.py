@@ -50,8 +50,20 @@ from app.auth.reset import (
 )
 from app.detection.events import (
     record_security_event,
+    EVENT_LOGIN_SUCCESS,
+    EVENT_LOGIN_FAILURE,
+    EVENT_MFA_SUCCESS,
+    EVENT_MFA_FAILURE,
+    EVENT_ACCOUNT_LOCKED,
     EVENT_PASSWORD_RESET_REQUESTED,
     EVENT_PASSWORD_RESET_COMPLETED,
+    EVENT_SESSION_REVOKED,
+    EVENT_MFA_ENABLED,
+    EVENT_MFA_DISABLED,
+    EVENT_USER_REGISTERED,
+    EVENT_LOGIN_BLOCKED,
+    EVENT_PASSWORD_CHANGED,
+    EVENT_RECOVERY_CODE_USED,
 )
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
@@ -120,6 +132,15 @@ def register():
     db.session.add(new_user)
     db.session.commit()
 
+    record_security_event(
+        EVENT_USER_REGISTERED,
+        user_id=new_user.id,
+        username=new_user.username,
+        ip_address=request.remote_addr,
+        success=True,
+        details={"role": new_user.role},
+    )
+
     return jsonify({
         "message": "User registered successfully.",
         "user": new_user.to_dict(),
@@ -142,12 +163,30 @@ def login():
         (User.username == login_id) | (User.email == login_id.lower())
     ).first()
 
+    ip_addr = request.remote_addr
+
     if not user or not user.is_active:
+        record_security_event(
+            EVENT_LOGIN_FAILURE,
+            user_id=user.id if user else None,
+            username=user.username if user else None,
+            ip_address=ip_addr,
+            success=False,
+            details={"reason": "account_not_found_or_inactive"},
+        )
         return jsonify({"error": "Unauthorized", "message": "Invalid username or password."}), 401
 
     # Check if account is temporarily locked
     if user.is_locked:
         expiry_iso = user.lockout_until.isoformat() if user.lockout_until else ""
+        record_security_event(
+            EVENT_LOGIN_BLOCKED,
+            user_id=user.id,
+            username=user.username,
+            ip_address=ip_addr,
+            success=False,
+            details={"reason": "account_locked", "lockout_until": expiry_iso},
+        )
         return jsonify({
             "error": "Forbidden",
             "message": f"Account is temporarily locked due to excessive failed attempts. Please try again after {expiry_iso}.",
@@ -163,9 +202,29 @@ def login():
         lockout_minutes = current_app.config.get("LOCKOUT_DURATION_MINUTES", 15)
 
         user.failed_attempts += 1
+        newly_locked = False
         if user.failed_attempts >= max_attempts:
             user.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=lockout_minutes)
+            newly_locked = True
         db.session.commit()
+
+        record_security_event(
+            EVENT_LOGIN_FAILURE,
+            user_id=user.id,
+            username=user.username,
+            ip_address=ip_addr,
+            success=False,
+            details={"reason": "invalid_password", "failed_attempts": user.failed_attempts},
+        )
+        if newly_locked:
+            record_security_event(
+                EVENT_ACCOUNT_LOCKED,
+                user_id=user.id,
+                username=user.username,
+                ip_address=ip_addr,
+                success=False,
+                details={"failed_attempts": user.failed_attempts, "lockout_minutes": lockout_minutes},
+            )
 
         remaining = max(0, max_attempts - user.failed_attempts)
         return jsonify({
@@ -203,8 +262,16 @@ def login():
 
     # Step 2.7: Establish server-side session and set secure HttpOnly cookie
     user_agent_str = request.headers.get("User-Agent", "")
-    ip_addr = request.remote_addr
     session_obj, raw_token = create_session(user.id, ip_address=ip_addr, user_agent=user_agent_str)
+
+    record_security_event(
+        EVENT_LOGIN_SUCCESS,
+        user_id=user.id,
+        username=user.username,
+        ip_address=ip_addr,
+        success=True,
+        details={"mfa_used": False, "hash_upgraded": hash_upgraded},
+    )
 
     resp = jsonify({
         "message": "Login successful.",
@@ -260,6 +327,14 @@ def change_password():
 
     if user.is_locked:
         expiry_iso = user.lockout_until.isoformat() if user.lockout_until else ""
+        record_security_event(
+            EVENT_LOGIN_BLOCKED,
+            user_id=user.id,
+            username=user.username,
+            ip_address=request.remote_addr,
+            success=False,
+            details={"endpoint": "change_password", "lockout_until": expiry_iso},
+        )
         return jsonify({
             "error": "Forbidden",
             "message": f"Account is temporarily locked. Please try again after {expiry_iso}.",
@@ -268,6 +343,14 @@ def change_password():
     if not verify_password(current_pwd, user.password_hash):
         user.failed_attempts += 1
         db.session.commit()
+        record_security_event(
+            EVENT_LOGIN_FAILURE,
+            user_id=user.id,
+            username=user.username,
+            ip_address=request.remote_addr,
+            success=False,
+            details={"endpoint": "change_password", "reason": "wrong_current_password"},
+        )
         return jsonify({"error": "Unauthorized", "message": "Current password is incorrect."}), 401
 
     if current_pwd == new_pwd:
@@ -295,7 +378,16 @@ def change_password():
     token = get_token_from_request()
     current_sess = get_session_by_token(token) if token else None
     current_sess_id = current_sess.id if current_sess else None
-    revoke_other_sessions(user.id, current_session_id=current_sess_id)
+    revoked_count = revoke_other_sessions(user.id, current_session_id=current_sess_id)
+
+    record_security_event(
+        EVENT_PASSWORD_CHANGED,
+        user_id=user.id,
+        username=user.username,
+        ip_address=request.remote_addr,
+        success=True,
+        details={"revoked_other_sessions": revoked_count},
+    )
 
     return jsonify({
         "message": "Password changed successfully.",
@@ -333,6 +425,14 @@ def verify_mfa():
 
     if user.is_locked:
         expiry_iso = user.lockout_until.isoformat() if user.lockout_until else ""
+        record_security_event(
+            EVENT_LOGIN_BLOCKED,
+            user_id=user.id,
+            username=user.username,
+            ip_address=request.remote_addr,
+            success=False,
+            details={"endpoint": "verify_mfa", "lockout_until": expiry_iso},
+        )
         return jsonify({
             "error": "Forbidden",
             "message": f"Account is temporarily locked. Please try again after {expiry_iso}.",
@@ -351,9 +451,30 @@ def verify_mfa():
         max_attempts = current_app.config.get("MAX_FAILED_ATTEMPTS", 5)
         lockout_minutes = current_app.config.get("LOCKOUT_DURATION_MINUTES", 15)
         user.failed_attempts += 1
+        newly_locked = False
         if user.failed_attempts >= max_attempts:
             user.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=lockout_minutes)
+            newly_locked = True
         db.session.commit()
+
+        ip_addr = request.remote_addr
+        record_security_event(
+            EVENT_MFA_FAILURE,
+            user_id=user.id,
+            username=user.username,
+            ip_address=ip_addr,
+            success=False,
+            details={"reason": reason or "invalid_code", "failed_attempts": user.failed_attempts},
+        )
+        if newly_locked:
+            record_security_event(
+                EVENT_ACCOUNT_LOCKED,
+                user_id=user.id,
+                username=user.username,
+                ip_address=ip_addr,
+                success=False,
+                details={"failed_attempts": user.failed_attempts, "source": "verify_mfa"},
+            )
 
         return jsonify({
             "error": "Unauthorized",
@@ -373,6 +494,22 @@ def verify_mfa():
     user_agent_str = request.headers.get("User-Agent", "")
     ip_addr = request.remote_addr
     session_obj, raw_token = create_session(user.id, ip_address=ip_addr, user_agent=user_agent_str)
+
+    record_security_event(
+        EVENT_MFA_SUCCESS,
+        user_id=user.id,
+        username=user.username,
+        ip_address=ip_addr,
+        success=True,
+    )
+    record_security_event(
+        EVENT_LOGIN_SUCCESS,
+        user_id=user.id,
+        username=user.username,
+        ip_address=ip_addr,
+        success=True,
+        details={"mfa_used": True},
+    )
 
     resp = jsonify({
         "message": "MFA verification successful. Login complete.",
@@ -460,6 +597,14 @@ def mfa_enable():
     )
 
     if not is_valid:
+        record_security_event(
+            EVENT_MFA_FAILURE,
+            user_id=user.id,
+            username=user.username,
+            ip_address=request.remote_addr,
+            success=False,
+            details={"endpoint": "mfa_enable", "reason": reason or "invalid_code"},
+        )
         return jsonify({
             "error": "Bad Request",
             "message": reason or "Invalid confirmation code."
@@ -474,6 +619,15 @@ def mfa_enable():
     # Generate one-time recovery codes (Step 2.6)
     recovery_codes = generate_user_recovery_codes(user.id)
     db.session.commit()
+
+    record_security_event(
+        EVENT_MFA_ENABLED,
+        user_id=user.id,
+        username=user.username,
+        ip_address=request.remote_addr,
+        success=True,
+        details={"recovery_codes_generated": len(recovery_codes)},
+    )
 
     return jsonify({
         "message": "Multi-factor authentication enabled successfully. Save your backup recovery codes now.",
@@ -510,6 +664,14 @@ def mfa_disable():
     if not verify_password(password, user.password_hash):
         user.failed_attempts += 1
         db.session.commit()
+        record_security_event(
+            EVENT_LOGIN_FAILURE,
+            user_id=user.id,
+            username=user.username,
+            ip_address=request.remote_addr,
+            success=False,
+            details={"endpoint": "mfa_disable", "reason": "invalid_password"},
+        )
         return jsonify({"error": "Unauthorized", "message": "Invalid username or password."}), 401
 
     if not user.mfa_enabled or not user.totp_secret:
@@ -526,6 +688,14 @@ def mfa_disable():
     if not is_valid:
         user.failed_attempts += 1
         db.session.commit()
+        record_security_event(
+            EVENT_MFA_FAILURE,
+            user_id=user.id,
+            username=user.username,
+            ip_address=request.remote_addr,
+            success=False,
+            details={"endpoint": "mfa_disable", "reason": reason or "invalid_code"},
+        )
         return jsonify({"error": "Unauthorized", "message": reason or "Invalid MFA code."}), 401
 
     user.mfa_enabled = False
@@ -540,7 +710,16 @@ def mfa_disable():
     token = get_token_from_request()
     current_sess = get_session_by_token(token) if token else None
     current_sess_id = current_sess.id if current_sess else None
-    revoke_other_sessions(user.id, current_session_id=current_sess_id)
+    revoked_count = revoke_other_sessions(user.id, current_session_id=current_sess_id)
+
+    record_security_event(
+        EVENT_MFA_DISABLED,
+        user_id=user.id,
+        username=user.username,
+        ip_address=request.remote_addr,
+        success=True,
+        details={"revoked_other_sessions": revoked_count},
+    )
 
     return jsonify({
         "message": "Multi-factor authentication disabled successfully.",
@@ -591,6 +770,14 @@ def recovery_login():
 
     if user.is_locked:
         expiry_iso = user.lockout_until.isoformat() if user.lockout_until else ""
+        record_security_event(
+            EVENT_LOGIN_BLOCKED,
+            user_id=user.id,
+            username=user.username,
+            ip_address=request.remote_addr,
+            success=False,
+            details={"endpoint": "recovery_login", "lockout_until": expiry_iso},
+        )
         return jsonify({
             "error": "Forbidden",
             "message": f"Account is temporarily locked. Please try again after {expiry_iso}.",
@@ -603,9 +790,30 @@ def recovery_login():
         max_attempts = current_app.config.get("MAX_FAILED_ATTEMPTS", 5)
         lockout_minutes = current_app.config.get("LOCKOUT_DURATION_MINUTES", 15)
         user.failed_attempts += 1
+        newly_locked = False
         if user.failed_attempts >= max_attempts:
             user.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=lockout_minutes)
+            newly_locked = True
         db.session.commit()
+
+        ip_addr = request.remote_addr
+        record_security_event(
+            EVENT_MFA_FAILURE,
+            user_id=user.id,
+            username=user.username,
+            ip_address=ip_addr,
+            success=False,
+            details={"endpoint": "recovery_login", "reason": message},
+        )
+        if newly_locked:
+            record_security_event(
+                EVENT_ACCOUNT_LOCKED,
+                user_id=user.id,
+                username=user.username,
+                ip_address=ip_addr,
+                success=False,
+                details={"failed_attempts": user.failed_attempts, "source": "recovery_login"},
+            )
 
         return jsonify({
             "error": "Unauthorized",
@@ -631,6 +839,23 @@ def recovery_login():
     user_agent_str = request.headers.get("User-Agent", "")
     ip_addr = request.remote_addr
     session_obj, raw_token = create_session(user.id, ip_address=ip_addr, user_agent=user_agent_str)
+
+    record_security_event(
+        EVENT_RECOVERY_CODE_USED,
+        user_id=user.id,
+        username=user.username,
+        ip_address=ip_addr,
+        success=True,
+        details={"mfa_reset": True},
+    )
+    record_security_event(
+        EVENT_LOGIN_SUCCESS,
+        user_id=user.id,
+        username=user.username,
+        ip_address=ip_addr,
+        success=True,
+        details={"method": "recovery_code"},
+    )
 
     resp = jsonify({
         "message": "Recovery code accepted. Login successful. Your lost MFA device has been deactivated. Please re-enroll MFA immediately.",
@@ -772,6 +997,13 @@ def logout():
             sess.is_revoked = True
             sess.revoked_at = datetime.now(timezone.utc)
             db.session.commit()
+            record_security_event(
+                EVENT_SESSION_REVOKED,
+                user_id=sess.user_id,
+                ip_address=request.remote_addr,
+                success=True,
+                details={"session_id": sess.id, "reason": "logout"},
+            )
 
     resp = jsonify({"message": "Logout successful."})
     return clear_session_cookie(resp), 200

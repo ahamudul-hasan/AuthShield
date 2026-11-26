@@ -1,4 +1,5 @@
-from flask import jsonify
+from flask import jsonify, request
+from app.detection.events import record_security_event, EVENT_RATE_LIMITED
 
 
 def register_error_handlers(app):
@@ -41,6 +42,12 @@ def register_error_handlers(app):
 
     @app.errorhandler(429)
     def ratelimit_handler(error):
+        record_security_event(
+            EVENT_RATE_LIMITED,
+            ip_address=request.remote_addr,
+            success=False,
+            details={"path": request.path, "method": request.method},
+        )
         return jsonify({
             "error": "Too Many Requests",
             "message": "Rate limit exceeded. Please try again later."

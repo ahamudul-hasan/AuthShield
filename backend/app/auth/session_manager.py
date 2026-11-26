@@ -8,6 +8,11 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from app.extensions import db
 from app.models.user import User
 from app.models.session import UserSession
+from app.detection.events import (
+    record_security_event,
+    EVENT_SESSION_CREATED,
+    EVENT_SESSION_REVOKED,
+)
 
 
 def generate_session_token() -> str:
@@ -57,6 +62,14 @@ def create_session(
     )
     db.session.add(session_obj)
     db.session.commit()
+
+    record_security_event(
+        EVENT_SESSION_CREATED,
+        user_id=user_id,
+        ip_address=ip_address,
+        success=True,
+        details={"session_id": session_obj.id},
+    )
 
     return session_obj, raw_token
 
@@ -143,6 +156,13 @@ def revoke_session(session_id: int, user_id: int) -> bool:
     session_obj.is_revoked = True
     session_obj.revoked_at = datetime.now(timezone.utc)
     db.session.commit()
+
+    record_security_event(
+        EVENT_SESSION_REVOKED,
+        user_id=user_id,
+        success=True,
+        details={"session_id": session_id},
+    )
     return True
 
 
@@ -162,6 +182,16 @@ def revoke_other_sessions(user_id: int, current_session_id: Optional[int] = None
         s.revoked_at = now
 
     db.session.commit()
+    if sessions:
+        record_security_event(
+            EVENT_SESSION_REVOKED,
+            user_id=user_id,
+            success=True,
+            details={
+                "revoked_count": len(sessions),
+                "kept_session_id": current_session_id,
+            },
+        )
     return len(sessions)
 
 
