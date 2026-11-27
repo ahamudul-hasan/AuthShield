@@ -48,6 +48,7 @@ from app.auth.reset import (
     verify_reset_token,
     consume_reset_token,
 )
+from app.detection.event_collector import resolve_client_ip
 from app.detection.events import (
     record_security_event,
     EVENT_LOGIN_SUCCESS,
@@ -60,6 +61,7 @@ from app.detection.events import (
     EVENT_SESSION_REVOKED,
     EVENT_MFA_ENABLED,
     EVENT_MFA_DISABLED,
+    EVENT_ADMIN_ACTION,
     EVENT_USER_REGISTERED,
     EVENT_LOGIN_BLOCKED,
     EVENT_PASSWORD_CHANGED,
@@ -91,6 +93,12 @@ def register():
 
     # Step 2.9: Never accept a role value from public registration
     if "role" in data and data.get("role") is not None:
+        record_security_event(
+            EVENT_ADMIN_ACTION,
+            raw_identifier=username,
+            success=False,
+            details={"action": "blocked_role_elevation_registration", "requested_role": str(data.get("role"))},
+        )
         return jsonify({
             "error": "Forbidden",
             "message": "Role assignment is not allowed during public registration.",
@@ -163,7 +171,7 @@ def login():
         (User.username == login_id) | (User.email == login_id.lower())
     ).first()
 
-    ip_addr = request.remote_addr
+    ip_addr = resolve_client_ip()
 
     if not user or not user.is_active:
         record_security_event(
@@ -492,7 +500,7 @@ def verify_mfa():
 
     # Step 2.7: Establish server-side session and set secure HttpOnly cookie
     user_agent_str = request.headers.get("User-Agent", "")
-    ip_addr = request.remote_addr
+    ip_addr = resolve_client_ip()
     session_obj, raw_token = create_session(user.id, ip_address=ip_addr, user_agent=user_agent_str)
 
     record_security_event(
@@ -540,9 +548,24 @@ def mfa_setup():
 
     user = User.query.filter_by(username=username).first()
     if not user or not user.is_active or not verify_password(password, user.password_hash):
+        record_security_event(
+            EVENT_LOGIN_FAILURE,
+            user_id=user.id if user else None,
+            username=user.username if user else None,
+            raw_identifier=username,
+            success=False,
+            details={"endpoint": "mfa_setup", "reason": "invalid_credentials"},
+        )
         return jsonify({"error": "Unauthorized", "message": "Invalid username or password."}), 401
 
     if user.is_locked:
+        record_security_event(
+            EVENT_LOGIN_BLOCKED,
+            user_id=user.id,
+            username=user.username,
+            success=False,
+            details={"endpoint": "mfa_setup"},
+        )
         return jsonify({"error": "Forbidden", "message": "Account is temporarily locked."}), 403
 
     raw_secret = generate_totp_secret()
@@ -763,6 +786,12 @@ def recovery_login():
             user = candidate
 
     if not user or not user.is_active:
+        record_security_event(
+            EVENT_LOGIN_FAILURE,
+            raw_identifier=username or None,
+            success=False,
+            details={"endpoint": "recovery_login", "reason": "invalid_session_or_credentials"},
+        )
         return jsonify({
             "error": "Unauthorized",
             "message": "Invalid or expired recovery session. Please provide valid login credentials."
@@ -824,6 +853,7 @@ def recovery_login():
 
     # Requirement 5: Require user to re-enroll MFA if authenticator is lost.
     # Deactivate the lost MFA authenticator on successful recovery
+    had_mfa = user.mfa_enabled
     user.mfa_enabled = False
     user.totp_secret = None
     user.last_totp_step = None
@@ -837,7 +867,7 @@ def recovery_login():
 
     # Step 2.7: Establish server-side session and set secure HttpOnly cookie
     user_agent_str = request.headers.get("User-Agent", "")
-    ip_addr = request.remote_addr
+    ip_addr = resolve_client_ip()
     session_obj, raw_token = create_session(user.id, ip_address=ip_addr, user_agent=user_agent_str)
 
     record_security_event(
@@ -846,8 +876,17 @@ def recovery_login():
         username=user.username,
         ip_address=ip_addr,
         success=True,
-        details={"mfa_reset": True},
+        details={"mfa_reset": had_mfa},
     )
+    if had_mfa:
+        record_security_event(
+            EVENT_MFA_DISABLED,
+            user_id=user.id,
+            username=user.username,
+            ip_address=ip_addr,
+            success=True,
+            details={"reason": "lost_authenticator_recovery"},
+        )
     record_security_event(
         EVENT_LOGIN_SUCCESS,
         user_id=user.id,

@@ -3,14 +3,28 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional, Dict, Any
 from flask import current_app, has_app_context, has_request_context, request
 from sqlalchemy.exc import SQLAlchemyError
 from app.extensions import db
 from app.models.security_event import SecurityEvent, hash_attempted_identifier
-from app.detection.event_types import is_valid_event_type
+from app.detection.event_types import (
+    is_valid_event_type,
+    EVENT_LOGIN_FAILURE,
+    EVENT_MFA_FAILURE,
+    EVENT_LOGIN_BLOCKED,
+    EVENT_ACCOUNT_LOCKED,
+)
 
 logger = logging.getLogger("authshield.security_events")
+
+_FAIL2BAN_EVENT_TYPES = frozenset({
+    EVENT_LOGIN_FAILURE,
+    EVENT_MFA_FAILURE,
+    EVENT_LOGIN_BLOCKED,
+    EVENT_ACCOUNT_LOCKED,
+})
 
 # In-memory ring buffer mirroring recent sanitized events
 _RECENT_EVENTS: list[Dict[str, Any]] = []
@@ -157,6 +171,38 @@ def resolve_user_agent(explicit_ua: Optional[str] = None) -> Optional[str]:
     return None
 
 
+def write_fail2ban_auth_log(
+    username: Optional[str],
+    source_ip: Optional[str],
+    timestamp: Optional[datetime] = None,
+) -> None:
+    """
+    Append a Fail2Ban-compatible line to logs/auth.log matching:
+      YYYY-MM-DD HH:MM:SS Failed login attempt for user=<safe_user> from <HOST>
+    Never writes raw unverified identifiers (uses 'unknown' if user is unknown).
+    """
+    if not has_app_context():
+        return
+    if not current_app.config.get("AUTH_LOG_ENABLED", False):
+        return
+
+    log_path_str = current_app.config.get("AUTH_LOG_PATH")
+    if not log_path_str or not source_ip:
+        return
+
+    ts = (timestamp or datetime.now(timezone.utc)).strftime("%Y-%m-%d %H:%M:%S")
+    safe_user = re.sub(r"[^A-Za-z0-9_.-]", "_", username or "unknown")[:64]
+    line = f"{ts} Failed login attempt for user={safe_user} from {source_ip}\n"
+
+    try:
+        log_path = Path(log_path_str)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(line)
+    except OSError as exc:
+        logger.warning("Failed to write Fail2Ban auth.log entry: %s", exc)
+
+
 def record_security_event(
     event_type: str,
     user_id: Optional[int] = None,
@@ -229,6 +275,9 @@ def record_security_event(
     _RECENT_EVENTS.append(event_payload)
     if len(_RECENT_EVENTS) > 500:
         _RECENT_EVENTS.pop(0)
+
+    if event_type in _FAIL2BAN_EVENT_TYPES:
+        write_fail2ban_auth_log(safe_username, resolved_ip, timestamp=now)
 
     logger.info("SECURITY_EVENT %s", json.dumps(event_payload))
     return event_payload

@@ -56,12 +56,14 @@ class Config:
     PASSWORD_RESET_TOKEN_EXPIRY_SECONDS = int(os.environ.get("PASSWORD_RESET_TOKEN_EXPIRY_SECONDS", 900))  # 15 minutes
     FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 
-    # Security Event Collection & Retention Configuration (Step 3.3)
+    # Security Event Collection & Retention Configuration (Step 3.3 / 3.4)
     EVENT_HMAC_KEY = os.environ.get("EVENT_HMAC_KEY", None)
     EVENT_RETENTION_DAYS = int(os.environ.get("EVENT_RETENTION_DAYS", 90))
     TRUSTED_PROXIES = [
         p.strip() for p in os.environ.get("TRUSTED_PROXIES", "").split(",") if p.strip()
     ]
+    AUTH_LOG_ENABLED = os.environ.get("AUTH_LOG_ENABLED", "True").lower() == "true"
+    AUTH_LOG_PATH = os.environ.get("AUTH_LOG_PATH", str(BASE_DIR.parent / "logs" / "auth.log"))
 
 
 class DevelopmentConfig(Config):
@@ -77,6 +79,7 @@ class TestingConfig(Config):
     SQLALCHEMY_DATABASE_URI = os.environ.get("TEST_DATABASE_URL", "sqlite:///:memory:")
     RATELIMIT_ENABLED = False
     WTF_CSRF_ENABLED = False
+    AUTH_LOG_ENABLED = False
 
 
 class ProductionConfig(Config):
