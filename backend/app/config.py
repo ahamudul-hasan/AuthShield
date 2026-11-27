@@ -65,6 +65,11 @@ class Config:
     AUTH_LOG_ENABLED = os.environ.get("AUTH_LOG_ENABLED", "True").lower() == "true"
     AUTH_LOG_PATH = os.environ.get("AUTH_LOG_PATH", str(BASE_DIR.parent / "logs" / "auth.log"))
 
+    # Threat Detection Engine Configuration (Stage 4)
+    DETECTOR_REALTIME_ENABLED = os.environ.get("DETECTOR_REALTIME_ENABLED", "True").lower() == "true"
+    DETECTOR_SCHEDULER_ENABLED = os.environ.get("DETECTOR_SCHEDULER_ENABLED", "False").lower() == "true"
+    DETECTOR_SWEEP_INTERVAL_SECONDS = int(os.environ.get("DETECTOR_SWEEP_INTERVAL_SECONDS", 60))
+
 
 class DevelopmentConfig(Config):
     """Development environment configuration."""

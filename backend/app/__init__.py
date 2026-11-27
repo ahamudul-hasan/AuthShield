@@ -37,6 +37,11 @@ def create_app(config_name=None):
     # Register Flask CLI commands
     register_cli_commands(app)
 
+    # Optionally start background detection sweep scheduler (disabled in CLI/tests by default)
+    if app.config.get("DETECTOR_SCHEDULER_ENABLED") and not app.config.get("TESTING"):
+        from app.detection.detector import init_detection_scheduler
+        init_detection_scheduler(app)
+
     # Register JSON error handlers
     register_error_handlers(app)
 

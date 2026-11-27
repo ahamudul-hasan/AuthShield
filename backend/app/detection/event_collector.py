@@ -280,6 +280,16 @@ def record_security_event(
         write_fail2ban_auth_log(safe_username, resolved_ip, timestamp=now)
 
     logger.info("SECURITY_EVENT %s", json.dumps(event_payload))
+
+    # Step 4.1: Trigger targeted threat detection after storing trigger events
+    if has_app_context() and current_app.config.get("DETECTOR_REALTIME_ENABLED", True):
+        try:
+            from app.detection.detector import analyze_event, TARGETED_TRIGGER_EVENTS
+            if event_type in TARGETED_TRIGGER_EVENTS:
+                analyze_event(event_payload)
+        except Exception as exc:
+            logger.warning("Targeted detection failed for %s: %s", event_type, exc)
+
     return event_payload
 
 

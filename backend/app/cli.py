@@ -6,6 +6,7 @@ from app.auth.password import hash_password
 from app.auth.validator import validate_password
 from app.detection.events import record_security_event, EVENT_ADMIN_ACTION
 from app.detection.event_repository import purge_expired_events
+from app.detection.detector import run_periodic_sweep
 
 
 def register_cli_commands(app: Flask) -> None:
@@ -68,3 +69,12 @@ def register_cli_commands(app: Flask) -> None:
         """Purge security events older than the configured retention period (Step 3.3)."""
         deleted = purge_expired_events(retention_days=days)
         click.echo(f"Purged {deleted} expired security event(s).")
+
+    @app.cli.command("run-detector-sweep")
+    def run_detector_sweep_command():
+        """Execute a periodic window-based threat detection sweep (Step 4.1)."""
+        result = run_periodic_sweep()
+        click.echo(
+            f"Detector sweep complete: findings={result.get('findings_count', 0)}, "
+            f"alerts={len(result.get('alerts', []))}"
+        )
