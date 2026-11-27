@@ -2,9 +2,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 from flask import current_app, has_app_context
-from app.detection.event_types import EVENT_LOGIN_FAILURE, EVENT_LOGIN_BLOCKED
+from app.detection.event_types import (
+    EVENT_LOGIN_FAILURE,
+    EVENT_LOGIN_BLOCKED,
+    EVENT_MFA_FAILURE,
+)
 from app.detection.event_repository import (
     count_account_login_failures,
+    count_account_mfa_failures,
     count_ip_distinct_targets,
     summarize_password_spray_window,
 )
@@ -55,6 +60,23 @@ def get_registered_rules() -> Dict[str, List[str]]:
     }
 
 
+def _read_account_rule_config(
+    threshold_key: str,
+    window_key: str,
+    points_key: str,
+    default_threshold: int,
+    default_window: int,
+    default_points: int,
+) -> tuple[int, int, int]:
+    """Read threshold, window minutes, and risk points from Flask config or defaults."""
+    if has_app_context():
+        threshold = int(current_app.config.get(threshold_key, default_threshold))
+        window_minutes = int(current_app.config.get(window_key, default_window))
+        points = int(current_app.config.get(points_key, default_points))
+        return threshold, window_minutes, points
+    return default_threshold, default_window, default_points
+
+
 @register_targeted_rule
 def detect_brute_force(event_payload: Dict[str, Any]) -> Optional[DetectionFinding]:
     """
@@ -71,14 +93,14 @@ def detect_brute_force(event_payload: Dict[str, Any]) -> Optional[DetectionFindi
     if user_id is None and not attempted_identifier:
         return None
 
-    if has_app_context():
-        threshold = int(current_app.config.get("BRUTE_FORCE_THRESHOLD", 5))
-        window_minutes = int(current_app.config.get("BRUTE_FORCE_WINDOW_MINUTES", 5))
-        points = int(current_app.config.get("BRUTE_FORCE_POINTS", 60))
-    else:
-        threshold = 5
-        window_minutes = 5
-        points = 60
+    threshold, window_minutes, points = _read_account_rule_config(
+        "BRUTE_FORCE_THRESHOLD",
+        "BRUTE_FORCE_WINDOW_MINUTES",
+        "BRUTE_FORCE_POINTS",
+        5,
+        5,
+        60,
+    )
 
     since = datetime.now(timezone.utc) - timedelta(minutes=max(1, window_minutes))
     counts = count_account_login_failures(
@@ -109,6 +131,63 @@ def detect_brute_force(event_payload: Dict[str, Any]) -> Optional[DetectionFindi
             "threshold": threshold,
             "window_minutes": window_minutes,
             "distinct_source_ips": counts["distinct_source_ips"],
+        },
+    )
+
+
+@register_targeted_rule
+def detect_mfa_failure(event_payload: Dict[str, Any]) -> Optional[DetectionFinding]:
+    """
+    Step 4.5 — MFA-failure detection rule:
+    Detects repeated incorrect MFA verification attempts (MFA_FAILURE) for one account
+    within a configurable time window, independent of password-login monitoring.
+    Default: 5 MFA failures within 5 minutes -> HIGH severity alert (>= 60 points).
+    """
+    if event_payload.get("event_type") != EVENT_MFA_FAILURE:
+        return None
+
+    user_id = event_payload.get("user_id")
+    attempted_identifier = event_payload.get("attempted_identifier")
+    if user_id is None and not attempted_identifier:
+        return None
+
+    threshold, window_minutes, points = _read_account_rule_config(
+        "MFA_FAILURE_THRESHOLD",
+        "MFA_FAILURE_WINDOW_MINUTES",
+        "MFA_FAILURE_POINTS",
+        5,
+        5,
+        60,
+    )
+
+    since = datetime.now(timezone.utc) - timedelta(minutes=max(1, window_minutes))
+    counts = count_account_mfa_failures(
+        user_id=user_id,
+        attempted_identifier=attempted_identifier,
+        since=since,
+    )
+
+    total_failures = counts["total_failures"]
+    if total_failures < max(1, threshold):
+        return None
+
+    return DetectionFinding(
+        rule_name="mfa_failure_account",
+        alert_type="MFA_FAILURE",
+        description=(
+            f"Repeated MFA verification failures detected: {total_failures} failed "
+            f"MFA attempt(s) within {window_minutes} minute(s)."
+        ),
+        base_points=points,
+        source_ip=event_payload.get("source_ip"),
+        target_user_id=user_id,
+        attempted_identifier=attempted_identifier,
+        evidence={
+            "failed_attempts": total_failures,
+            "threshold": threshold,
+            "window_minutes": window_minutes,
+            "distinct_source_ips": counts["distinct_source_ips"],
+            "endpoints": counts["endpoints"],
         },
     )
 

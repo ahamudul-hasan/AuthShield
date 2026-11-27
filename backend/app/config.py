@@ -88,6 +88,11 @@ class Config:
     )
     PASSWORD_SPRAY_POINTS = int(os.environ.get("PASSWORD_SPRAY_POINTS", 45))
 
+    # Step 4.5: MFA-Failure Detection Thresholds
+    MFA_FAILURE_THRESHOLD = int(os.environ.get("MFA_FAILURE_THRESHOLD", 5))
+    MFA_FAILURE_WINDOW_MINUTES = int(os.environ.get("MFA_FAILURE_WINDOW_MINUTES", 5))
+    MFA_FAILURE_POINTS = int(os.environ.get("MFA_FAILURE_POINTS", 60))
+
 
 class DevelopmentConfig(Config):
     """Development environment configuration."""

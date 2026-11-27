@@ -3,7 +3,11 @@ from typing import Optional, List, Tuple, Dict, Any
 from flask import current_app
 from app.extensions import db
 from app.models.security_event import SecurityEvent
-from app.detection.event_types import EVENT_LOGIN_FAILURE, EVENT_LOGIN_BLOCKED
+from app.detection.event_types import (
+    EVENT_LOGIN_FAILURE,
+    EVENT_LOGIN_BLOCKED,
+    EVENT_MFA_FAILURE,
+)
 
 
 def query_events(
@@ -80,6 +84,28 @@ def count_total_events() -> int:
     return SecurityEvent.query.count()
 
 
+def _query_account_events(
+    event_types: List[str],
+    user_id: Optional[int] = None,
+    attempted_identifier: Optional[str] = None,
+    since: Optional[datetime] = None,
+) -> List[SecurityEvent]:
+    """Fetch bounded security events for one target account by user_id or HMAC identifier."""
+    if user_id is None and not attempted_identifier:
+        return []
+
+    query = SecurityEvent.query.filter(SecurityEvent.event_type.in_(event_types))
+    if user_id is not None:
+        query = query.filter(SecurityEvent.user_id == user_id)
+    else:
+        query = query.filter(SecurityEvent.attempted_identifier == attempted_identifier)
+
+    if since is not None:
+        query = query.filter(SecurityEvent.timestamp >= since)
+
+    return query.all()
+
+
 def count_account_login_failures(
     user_id: Optional[int] = None,
     attempted_identifier: Optional[str] = None,
@@ -89,7 +115,13 @@ def count_account_login_failures(
     Count LOGIN_FAILURE and LOGIN_BLOCKED events for one target account within a time window.
     Uses indexed user_id or attempted_identifier columns.
     """
-    if user_id is None and not attempted_identifier:
+    rows = _query_account_events(
+        [EVENT_LOGIN_FAILURE, EVENT_LOGIN_BLOCKED],
+        user_id=user_id,
+        attempted_identifier=attempted_identifier,
+        since=since,
+    )
+    if not rows:
         return {
             "total_failures": 0,
             "login_failures": 0,
@@ -97,18 +129,6 @@ def count_account_login_failures(
             "distinct_source_ips": 0,
         }
 
-    query = SecurityEvent.query.filter(
-        SecurityEvent.event_type.in_([EVENT_LOGIN_FAILURE, EVENT_LOGIN_BLOCKED])
-    )
-    if user_id is not None:
-        query = query.filter(SecurityEvent.user_id == user_id)
-    else:
-        query = query.filter(SecurityEvent.attempted_identifier == attempted_identifier)
-
-    if since is not None:
-        query = query.filter(SecurityEvent.timestamp >= since)
-
-    rows = query.all()
     login_failures = sum(1 for r in rows if r.event_type == EVENT_LOGIN_FAILURE)
     login_blocked = sum(1 for r in rows if r.event_type == EVENT_LOGIN_BLOCKED)
     distinct_ips = len({r.source_ip for r in rows if r.source_ip})
@@ -118,6 +138,41 @@ def count_account_login_failures(
         "login_failures": login_failures,
         "login_blocked": login_blocked,
         "distinct_source_ips": distinct_ips,
+    }
+
+
+def count_account_mfa_failures(
+    user_id: Optional[int] = None,
+    attempted_identifier: Optional[str] = None,
+    since: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """
+    Count MFA_FAILURE events for one target account within a bounded time window (Step 4.5).
+    """
+    rows = _query_account_events(
+        [EVENT_MFA_FAILURE],
+        user_id=user_id,
+        attempted_identifier=attempted_identifier,
+        since=since,
+    )
+    if not rows:
+        return {
+            "total_failures": 0,
+            "distinct_source_ips": 0,
+            "endpoints": [],
+        }
+
+    distinct_ips = len({r.source_ip for r in rows if r.source_ip})
+    endpoints = sorted({
+        str(r.details.get("endpoint") or "verify_mfa")
+        for r in rows
+        if isinstance(r.details, dict)
+    })
+
+    return {
+        "total_failures": len(rows),
+        "distinct_source_ips": distinct_ips,
+        "endpoints": endpoints,
     }
 
 
