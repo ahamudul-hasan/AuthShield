@@ -121,6 +121,24 @@ def count_account_login_failures(
     }
 
 
+_SPRAY_METADATA_KEYS = (
+    "spray_pattern",
+    "spray_cohort",
+    "simulation_tag",
+    "test_spray_id",
+    "campaign_id",
+)
+
+
+def _resolve_target_key(event: SecurityEvent) -> Optional[str]:
+    """Return a privacy-preserving target key for aggregating across real and unknown accounts."""
+    if event.attempted_identifier:
+        return event.attempted_identifier
+    if event.user_id is not None:
+        return f"uid:{event.user_id}"
+    return None
+
+
 def count_ip_distinct_targets(
     source_ip: Optional[str],
     since: Optional[datetime] = None,
@@ -150,7 +168,7 @@ def count_ip_distinct_targets(
     for r in rows:
         if r.user_id is None:
             unknown_count += 1
-        target_key = r.attempted_identifier or (f"uid:{r.user_id}" if r.user_id is not None else None)
+        target_key = _resolve_target_key(r)
         if target_key:
             distinct_targets.add(target_key)
 
@@ -158,6 +176,103 @@ def count_ip_distinct_targets(
         "distinct_accounts": len(distinct_targets),
         "total_attempts": len(rows),
         "unknown_account_attempts": unknown_count,
+    }
+
+
+def summarize_password_spray_window(
+    since: Optional[datetime] = None,
+    max_attempts_per_account: int = 2,
+) -> Dict[str, Any]:
+    """
+    Summarize cross-account failed login distribution within a bounded time window
+    using safe signals (account distribution, source patterns, and non-secret metadata).
+    """
+    query = SecurityEvent.query.filter(
+        SecurityEvent.event_type.in_([EVENT_LOGIN_FAILURE, EVENT_LOGIN_BLOCKED])
+    )
+    if since is not None:
+        query = query.filter(SecurityEvent.timestamp >= since)
+
+    rows = query.all()
+    if not rows:
+        return {
+            "distinct_accounts": 0,
+            "low_attempt_accounts": 0,
+            "existing_accounts_targeted": 0,
+            "total_attempts": 0,
+            "avg_attempts_per_account": 0.0,
+            "max_attempts_per_account_observed": 0,
+            "distinct_source_ips": 0,
+            "primary_source_ip": None,
+            "dominant_user_agent_ratio": 0.0,
+            "matched_metadata_tags": [],
+            "max_metadata_accounts": 0,
+        }
+
+    account_attempts: Dict[str, int] = {}
+    existing_targets = set()
+    ip_counts: Dict[str, int] = {}
+    ua_counts: Dict[str, int] = {}
+    metadata_targets: Dict[str, set] = {}
+
+    for r in rows:
+        target_key = _resolve_target_key(r)
+        if target_key:
+            account_attempts[target_key] = account_attempts.get(target_key, 0) + 1
+            if r.user_id is not None:
+                existing_targets.add(target_key)
+
+        if r.source_ip:
+            ip_counts[r.source_ip] = ip_counts.get(r.source_ip, 0) + 1
+
+        if r.user_agent:
+            ua_counts[r.user_agent] = ua_counts.get(r.user_agent, 0) + 1
+
+        if isinstance(r.details, dict) and target_key:
+            for meta_key in _SPRAY_METADATA_KEYS:
+                meta_val = r.details.get(meta_key)
+                if isinstance(meta_val, str) and meta_val.strip():
+                    tag = f"{meta_key}={meta_val.strip()}"
+                    metadata_targets.setdefault(tag, set()).add(target_key)
+
+    distinct_accounts = len(account_attempts)
+    low_attempt_accounts = sum(
+        1 for count in account_attempts.values() if 1 <= count <= max(1, max_attempts_per_account)
+    )
+    total_attempts = len(rows)
+    avg_attempts = round(total_attempts / distinct_accounts, 2) if distinct_accounts else 0.0
+    max_observed = max(account_attempts.values()) if account_attempts else 0
+
+    primary_source_ip = None
+    if ip_counts:
+        top_ip, top_ip_count = max(ip_counts.items(), key=lambda item: item[1])
+        if top_ip_count / total_attempts >= 0.7:
+            primary_source_ip = top_ip
+
+    ua_total = sum(ua_counts.values())
+    dominant_ua_ratio = round(max(ua_counts.values()) / ua_total, 2) if ua_total else 0.0
+
+    matched_tags = [
+        {"tag": tag, "distinct_accounts": len(targets)}
+        for tag, targets in sorted(
+            metadata_targets.items(), key=lambda item: len(item[1]), reverse=True
+        )
+        if len(targets) >= 2
+    ][:5]
+    max_metadata_accounts = max((len(t) for t in metadata_targets.values()), default=0)
+
+    return {
+        "distinct_accounts": distinct_accounts,
+        "low_attempt_accounts": low_attempt_accounts,
+        "existing_accounts_targeted": len(existing_targets),
+        "total_attempts": total_attempts,
+        "avg_attempts_per_account": avg_attempts,
+        "max_attempts_per_account_observed": max_observed,
+        "distinct_source_ips": len(ip_counts),
+        "primary_source_ip": primary_source_ip,
+        "dominant_user_agent_ratio": dominant_ua_ratio,
+        "matched_metadata_tags": matched_tags,
+        "max_metadata_accounts": max_metadata_accounts,
     }
 
 

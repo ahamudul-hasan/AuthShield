@@ -80,6 +80,14 @@ class Config:
     CREDENTIAL_STUFFING_WINDOW_MINUTES = int(os.environ.get("CREDENTIAL_STUFFING_WINDOW_MINUTES", 10))
     CREDENTIAL_STUFFING_POINTS = int(os.environ.get("CREDENTIAL_STUFFING_POINTS", 40))
 
+    # Step 4.4: Password-Spraying Detection Thresholds
+    PASSWORD_SPRAY_THRESHOLD = int(os.environ.get("PASSWORD_SPRAY_THRESHOLD", 6))
+    PASSWORD_SPRAY_WINDOW_MINUTES = int(os.environ.get("PASSWORD_SPRAY_WINDOW_MINUTES", 15))
+    PASSWORD_SPRAY_MAX_ATTEMPTS_PER_ACCOUNT = int(
+        os.environ.get("PASSWORD_SPRAY_MAX_ATTEMPTS_PER_ACCOUNT", 2)
+    )
+    PASSWORD_SPRAY_POINTS = int(os.environ.get("PASSWORD_SPRAY_POINTS", 45))
+
 
 class DevelopmentConfig(Config):
     """Development environment configuration."""

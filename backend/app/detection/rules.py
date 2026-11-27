@@ -6,6 +6,7 @@ from app.detection.event_types import EVENT_LOGIN_FAILURE, EVENT_LOGIN_BLOCKED
 from app.detection.event_repository import (
     count_account_login_failures,
     count_ip_distinct_targets,
+    summarize_password_spray_window,
 )
 
 
@@ -162,6 +163,96 @@ def detect_credential_stuffing(event_payload: Dict[str, Any]) -> Optional[Detect
             "window_minutes": window_minutes,
         },
     )
+
+
+@register_sweep_rule
+def detect_password_spraying() -> List[DetectionFinding]:
+    """
+    Step 4.4 — Password-spraying indicator rule (periodic sweep):
+    Detects low-and-slow failed login fan-out across many distinct accounts
+    (staying under per-account lockout thresholds) using safe behavioral signals:
+    account distribution, source/User-Agent patterns, and controlled test metadata.
+    Never inspects or stores plaintext passwords.
+    """
+    if has_app_context():
+        threshold = max(2, int(current_app.config.get("PASSWORD_SPRAY_THRESHOLD", 6)))
+        window_minutes = max(1, int(current_app.config.get("PASSWORD_SPRAY_WINDOW_MINUTES", 15)))
+        max_per_account = max(1, int(current_app.config.get("PASSWORD_SPRAY_MAX_ATTEMPTS_PER_ACCOUNT", 2)))
+        points = int(current_app.config.get("PASSWORD_SPRAY_POINTS", 45))
+    else:
+        threshold = 6
+        window_minutes = 15
+        max_per_account = 2
+        points = 45
+
+    since = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+    stats = summarize_password_spray_window(
+        since=since,
+        max_attempts_per_account=max_per_account,
+    )
+
+    low_attempt_accounts = stats["low_attempt_accounts"]
+    avg_attempts = stats["avg_attempts_per_account"]
+    max_avg_allowed = max(2.5, float(max_per_account) + 0.5)
+
+    # Low-and-slow fan-out requires many thinly targeted accounts rather than single-account brute force
+    if low_attempt_accounts < threshold or avg_attempts > max_avg_allowed:
+        return []
+
+    distinct_ips = stats["distinct_source_ips"]
+    shared_ip_concentration = (
+        distinct_ips == 1
+        or (distinct_ips > 0 and (low_attempt_accounts / distinct_ips) >= 2.0)
+    )
+    uniform_client_signal = stats["dominant_user_agent_ratio"] >= 0.7
+    existing_account_focus = stats["existing_accounts_targeted"] >= max(2, threshold // 2)
+    metadata_signal = stats["max_metadata_accounts"] >= max(3, threshold // 2)
+
+    signals_present = [
+        name
+        for name, active in (
+            ("low_per_account_distribution", True),
+            ("concentrated_source_ips", shared_ip_concentration),
+            ("uniform_user_agent", uniform_client_signal),
+            ("existing_account_targeting", existing_account_focus),
+            ("controlled_test_metadata", metadata_signal),
+        )
+        if active
+    ]
+
+    # Require at least one corroborating source/distribution/metadata signal beyond account count alone
+    if len(signals_present) < 2:
+        return []
+
+    return [
+        DetectionFinding(
+            rule_name="password_spraying_sweep",
+            alert_type="PASSWORD_SPRAY",
+            description=(
+                f"Password-spraying indicator: {low_attempt_accounts} distinct accounts "
+                f"averaged {avg_attempts} failed attempts across {distinct_ips} source IP(s) "
+                f"within {window_minutes} minute(s)."
+            ),
+            base_points=points,
+            source_ip=stats["primary_source_ip"],
+            target_user_id=None,
+            attempted_identifier=None,
+            evidence={
+                "distinct_accounts": stats["distinct_accounts"],
+                "low_attempt_accounts": low_attempt_accounts,
+                "existing_accounts_targeted": stats["existing_accounts_targeted"],
+                "total_attempts": stats["total_attempts"],
+                "avg_attempts_per_account": avg_attempts,
+                "max_attempts_per_account_observed": stats["max_attempts_per_account_observed"],
+                "distinct_source_ips": distinct_ips,
+                "dominant_user_agent_ratio": stats["dominant_user_agent_ratio"],
+                "matched_metadata_tags": stats["matched_metadata_tags"],
+                "safe_signals": signals_present,
+                "threshold": threshold,
+                "window_minutes": window_minutes,
+            },
+        )
+    ]
 
 
 def evaluate_targeted_rules(event_payload: Dict[str, Any]) -> List[DetectionFinding]:
