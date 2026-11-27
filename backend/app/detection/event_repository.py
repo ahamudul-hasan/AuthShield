@@ -1,8 +1,9 @@
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict, Any
 from flask import current_app
 from app.extensions import db
 from app.models.security_event import SecurityEvent
+from app.detection.event_types import EVENT_LOGIN_FAILURE, EVENT_LOGIN_BLOCKED
 
 
 def query_events(
@@ -77,6 +78,47 @@ def count_events(
 def count_total_events() -> int:
     """Return total count of persisted security events."""
     return SecurityEvent.query.count()
+
+
+def count_account_login_failures(
+    user_id: Optional[int] = None,
+    attempted_identifier: Optional[str] = None,
+    since: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """
+    Count LOGIN_FAILURE and LOGIN_BLOCKED events for one target account within a time window.
+    Uses indexed user_id or attempted_identifier columns.
+    """
+    if user_id is None and not attempted_identifier:
+        return {
+            "total_failures": 0,
+            "login_failures": 0,
+            "login_blocked": 0,
+            "distinct_source_ips": 0,
+        }
+
+    query = SecurityEvent.query.filter(
+        SecurityEvent.event_type.in_([EVENT_LOGIN_FAILURE, EVENT_LOGIN_BLOCKED])
+    )
+    if user_id is not None:
+        query = query.filter(SecurityEvent.user_id == user_id)
+    else:
+        query = query.filter(SecurityEvent.attempted_identifier == attempted_identifier)
+
+    if since is not None:
+        query = query.filter(SecurityEvent.timestamp >= since)
+
+    rows = query.all()
+    login_failures = sum(1 for r in rows if r.event_type == EVENT_LOGIN_FAILURE)
+    login_blocked = sum(1 for r in rows if r.event_type == EVENT_LOGIN_BLOCKED)
+    distinct_ips = len({r.source_ip for r in rows if r.source_ip})
+
+    return {
+        "total_failures": len(rows),
+        "login_failures": login_failures,
+        "login_blocked": login_blocked,
+        "distinct_source_ips": distinct_ips,
+    }
 
 
 def purge_expired_events(retention_days: Optional[int] = None) -> int:

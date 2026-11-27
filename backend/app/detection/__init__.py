@@ -20,7 +20,13 @@ from app.detection.risk_engine import (
     SEVERITY_HIGH,
     SEVERITY_CRITICAL,
 )
-from app.detection.alert_manager import process_findings, build_incident_key
+from app.detection.alert_manager import (
+    process_findings,
+    build_incident_key,
+    get_alerts,
+    count_active_alerts,
+    clear_alerts,
+)
 
 __all__ = [
     "analyze_event",
@@ -40,4 +46,7 @@ __all__ = [
     "SEVERITY_CRITICAL",
     "process_findings",
     "build_incident_key",
+    "get_alerts",
+    "count_active_alerts",
+    "clear_alerts",
 ]

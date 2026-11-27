@@ -1,6 +1,9 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
+from flask import current_app, has_app_context
+from app.detection.event_types import EVENT_LOGIN_FAILURE, EVENT_LOGIN_BLOCKED
+from app.detection.event_repository import count_account_login_failures
 
 
 @dataclass
@@ -21,7 +24,7 @@ class DetectionFinding:
 TargetedRuleFn = Callable[[Dict[str, Any]], Optional[DetectionFinding]]
 SweepRuleFn = Callable[[], List[DetectionFinding]]
 
-# Registries populated by individual detection rule steps (Steps 4.2–4.7)
+# Registries populated by detection rules
 _TARGETED_RULES: List[TargetedRuleFn] = []
 _SWEEP_RULES: List[SweepRuleFn] = []
 
@@ -46,6 +49,64 @@ def get_registered_rules() -> Dict[str, List[str]]:
         "targeted": [fn.__name__ for fn in _TARGETED_RULES],
         "sweep": [fn.__name__ for fn in _SWEEP_RULES],
     }
+
+
+@register_targeted_rule
+def detect_brute_force(event_payload: Dict[str, Any]) -> Optional[DetectionFinding]:
+    """
+    Step 4.2 — Brute-force detection rule:
+    Detects repeated failed login attempts (LOGIN_FAILURE and LOGIN_BLOCKED)
+    against one account within a configurable time window.
+    Default: 5 failures within 5 minutes -> HIGH severity alert (>= 60 points).
+    """
+    if event_payload.get("event_type") not in (EVENT_LOGIN_FAILURE, EVENT_LOGIN_BLOCKED):
+        return None
+
+    user_id = event_payload.get("user_id")
+    attempted_identifier = event_payload.get("attempted_identifier")
+    if user_id is None and not attempted_identifier:
+        return None
+
+    if has_app_context():
+        threshold = int(current_app.config.get("BRUTE_FORCE_THRESHOLD", 5))
+        window_minutes = int(current_app.config.get("BRUTE_FORCE_WINDOW_MINUTES", 5))
+        points = int(current_app.config.get("BRUTE_FORCE_POINTS", 60))
+    else:
+        threshold = 5
+        window_minutes = 5
+        points = 60
+
+    since = datetime.now(timezone.utc) - timedelta(minutes=max(1, window_minutes))
+    counts = count_account_login_failures(
+        user_id=user_id,
+        attempted_identifier=attempted_identifier,
+        since=since,
+    )
+
+    total_failures = counts["total_failures"]
+    if total_failures < max(1, threshold):
+        return None
+
+    return DetectionFinding(
+        rule_name="brute_force_account",
+        alert_type="BRUTE_FORCE",
+        description=(
+            f"Repeated failed login attempts detected: {total_failures} failed "
+            f"or blocked attempts within {window_minutes} minute(s)."
+        ),
+        base_points=points,
+        source_ip=event_payload.get("source_ip"),
+        target_user_id=user_id,
+        attempted_identifier=attempted_identifier,
+        evidence={
+            "failed_attempts": total_failures,
+            "login_failures": counts["login_failures"],
+            "login_blocked": counts["login_blocked"],
+            "threshold": threshold,
+            "window_minutes": window_minutes,
+            "distinct_source_ips": counts["distinct_source_ips"],
+        },
+    )
 
 
 def evaluate_targeted_rules(event_payload: Dict[str, Any]) -> List[DetectionFinding]:

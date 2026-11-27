@@ -70,6 +70,11 @@ class Config:
     DETECTOR_SCHEDULER_ENABLED = os.environ.get("DETECTOR_SCHEDULER_ENABLED", "False").lower() == "true"
     DETECTOR_SWEEP_INTERVAL_SECONDS = int(os.environ.get("DETECTOR_SWEEP_INTERVAL_SECONDS", 60))
 
+    # Step 4.2: Brute-Force Detection Thresholds
+    BRUTE_FORCE_THRESHOLD = int(os.environ.get("BRUTE_FORCE_THRESHOLD", 5))
+    BRUTE_FORCE_WINDOW_MINUTES = int(os.environ.get("BRUTE_FORCE_WINDOW_MINUTES", 5))
+    BRUTE_FORCE_POINTS = int(os.environ.get("BRUTE_FORCE_POINTS", 60))
+
 
 class DevelopmentConfig(Config):
     """Development environment configuration."""
