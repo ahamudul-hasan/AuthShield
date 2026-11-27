@@ -56,6 +56,13 @@ class Config:
     PASSWORD_RESET_TOKEN_EXPIRY_SECONDS = int(os.environ.get("PASSWORD_RESET_TOKEN_EXPIRY_SECONDS", 900))  # 15 minutes
     FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 
+    # Security Event Collection & Retention Configuration (Step 3.3)
+    EVENT_HMAC_KEY = os.environ.get("EVENT_HMAC_KEY", None)
+    EVENT_RETENTION_DAYS = int(os.environ.get("EVENT_RETENTION_DAYS", 90))
+    TRUSTED_PROXIES = [
+        p.strip() for p in os.environ.get("TRUSTED_PROXIES", "").split(",") if p.strip()
+    ]
+
 
 class DevelopmentConfig(Config):
     """Development environment configuration."""

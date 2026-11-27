@@ -5,6 +5,7 @@ from app.models.user import User
 from app.auth.password import hash_password
 from app.auth.validator import validate_password
 from app.detection.events import record_security_event, EVENT_ADMIN_ACTION
+from app.detection.event_repository import purge_expired_events
 
 
 def register_cli_commands(app: Flask) -> None:
@@ -60,3 +61,10 @@ def register_cli_commands(app: Flask) -> None:
         )
 
         click.echo(f"Administrator '{clean_username}' created successfully (ID: {admin_user.id}).")
+
+    @app.cli.command("purge-events")
+    @click.option("--days", default=None, type=int, help="Retention window in days (defaults to EVENT_RETENTION_DAYS)")
+    def purge_events_command(days: int):
+        """Purge security events older than the configured retention period (Step 3.3)."""
+        deleted = purge_expired_events(retention_days=days)
+        click.echo(f"Purged {deleted} expired security event(s).")

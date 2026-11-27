@@ -170,7 +170,7 @@ def login():
             EVENT_LOGIN_FAILURE,
             user_id=user.id if user else None,
             username=user.username if user else None,
-            ip_address=ip_addr,
+            raw_identifier=login_id,
             success=False,
             details={"reason": "account_not_found_or_inactive"},
         )
@@ -183,7 +183,7 @@ def login():
             EVENT_LOGIN_BLOCKED,
             user_id=user.id,
             username=user.username,
-            ip_address=ip_addr,
+            raw_identifier=login_id,
             success=False,
             details={"reason": "account_locked", "lockout_until": expiry_iso},
         )
@@ -212,7 +212,7 @@ def login():
             EVENT_LOGIN_FAILURE,
             user_id=user.id,
             username=user.username,
-            ip_address=ip_addr,
+            raw_identifier=login_id,
             success=False,
             details={"reason": "invalid_password", "failed_attempts": user.failed_attempts},
         )
@@ -221,7 +221,7 @@ def login():
                 EVENT_ACCOUNT_LOCKED,
                 user_id=user.id,
                 username=user.username,
-                ip_address=ip_addr,
+                raw_identifier=login_id,
                 success=False,
                 details={"failed_attempts": user.failed_attempts, "lockout_minutes": lockout_minutes},
             )

@@ -6,9 +6,9 @@ from app.auth.rbac import admin_required, VALID_ROLES
 from app.auth.session_manager import revoke_all_sessions
 from app.detection.events import (
     record_security_event,
-    get_recent_security_events,
     EVENT_ADMIN_ACTION,
 )
+from app.detection.event_repository import query_events
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api")
 
@@ -126,10 +126,21 @@ def update_user_status(user_id: int):
 @admin_bp.route("/events", methods=["GET"])
 @admin_required
 def list_security_events():
-    """Admin-only security events endpoint."""
+    """Admin-only security events endpoint backed by PostgreSQL security_events."""
     event_type = request.args.get("event_type")
-    events = get_recent_security_events(event_type=event_type)
+    user_id = request.args.get("user_id", type=int)
+    source_ip = request.args.get("source_ip")
+    limit = request.args.get("limit", 100, type=int)
+    offset = request.args.get("offset", 0, type=int)
+
+    events, total = query_events(
+        event_type=event_type,
+        user_id=user_id,
+        source_ip=source_ip,
+        limit=limit,
+        offset=offset,
+    )
     return jsonify({
-        "events": list(reversed(events)),
-        "total": len(events),
+        "events": [e.to_dict() for e in events],
+        "total": total,
     }), 200
