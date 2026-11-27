@@ -46,7 +46,11 @@ def process_findings(
             "description": f.description,
             "evidence": f.evidence,
             "status": "OPEN",
-            "event_count": f.evidence.get("failed_attempts", 1),
+            "event_count": (
+                f.evidence.get("failed_attempts")
+                or f.evidence.get("total_attempts")
+                or 1
+            ),
             "first_seen": now_iso,
             "last_seen": now_iso,
             "created_at": now_iso,

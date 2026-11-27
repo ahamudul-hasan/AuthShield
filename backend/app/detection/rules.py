@@ -3,7 +3,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 from flask import current_app, has_app_context
 from app.detection.event_types import EVENT_LOGIN_FAILURE, EVENT_LOGIN_BLOCKED
-from app.detection.event_repository import count_account_login_failures
+from app.detection.event_repository import (
+    count_account_login_failures,
+    count_ip_distinct_targets,
+)
 
 
 @dataclass
@@ -105,6 +108,58 @@ def detect_brute_force(event_payload: Dict[str, Any]) -> Optional[DetectionFindi
             "threshold": threshold,
             "window_minutes": window_minutes,
             "distinct_source_ips": counts["distinct_source_ips"],
+        },
+    )
+
+
+@register_targeted_rule
+def detect_credential_stuffing(event_payload: Dict[str, Any]) -> Optional[DetectionFinding]:
+    """
+    Step 4.3 — Credential-stuffing detection rule:
+    Detects one source IP attempting logins across many distinct accounts
+    (including non-existent accounts via HMAC attempted_identifier) within a window.
+    Default: 10 distinct accounts within 10 minutes -> MEDIUM severity indicator (40 points).
+    """
+    if event_payload.get("event_type") not in (EVENT_LOGIN_FAILURE, EVENT_LOGIN_BLOCKED):
+        return None
+
+    source_ip = event_payload.get("source_ip")
+    if not source_ip:
+        return None
+
+    if has_app_context():
+        threshold = int(current_app.config.get("CREDENTIAL_STUFFING_THRESHOLD", 10))
+        window_minutes = int(current_app.config.get("CREDENTIAL_STUFFING_WINDOW_MINUTES", 10))
+        points = int(current_app.config.get("CREDENTIAL_STUFFING_POINTS", 40))
+    else:
+        threshold = 10
+        window_minutes = 10
+        points = 40
+
+    since = datetime.now(timezone.utc) - timedelta(minutes=max(1, window_minutes))
+    stats = count_ip_distinct_targets(source_ip=source_ip, since=since)
+
+    distinct_accounts = stats["distinct_accounts"]
+    if distinct_accounts < max(1, threshold):
+        return None
+
+    return DetectionFinding(
+        rule_name="credential_stuffing_ip",
+        alert_type="CREDENTIAL_STUFFING",
+        description=(
+            f"Credential-stuffing indicator from {source_ip}: "
+            f"{distinct_accounts} distinct accounts targeted within {window_minutes} minute(s)."
+        ),
+        base_points=points,
+        source_ip=source_ip,
+        target_user_id=None,
+        attempted_identifier=None,
+        evidence={
+            "distinct_accounts": distinct_accounts,
+            "total_attempts": stats["total_attempts"],
+            "unknown_account_attempts": stats["unknown_account_attempts"],
+            "threshold": threshold,
+            "window_minutes": window_minutes,
         },
     )
 

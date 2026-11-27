@@ -121,6 +121,46 @@ def count_account_login_failures(
     }
 
 
+def count_ip_distinct_targets(
+    source_ip: Optional[str],
+    since: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """
+    Count distinct target accounts (via HMAC attempted_identifier or user_id)
+    targeted from one source_ip within a time window (Step 4.3).
+    """
+    if not source_ip:
+        return {
+            "distinct_accounts": 0,
+            "total_attempts": 0,
+            "unknown_account_attempts": 0,
+        }
+
+    query = SecurityEvent.query.filter(
+        SecurityEvent.source_ip == source_ip,
+        SecurityEvent.event_type.in_([EVENT_LOGIN_FAILURE, EVENT_LOGIN_BLOCKED]),
+    )
+    if since is not None:
+        query = query.filter(SecurityEvent.timestamp >= since)
+
+    rows = query.all()
+    distinct_targets = set()
+    unknown_count = 0
+
+    for r in rows:
+        if r.user_id is None:
+            unknown_count += 1
+        target_key = r.attempted_identifier or (f"uid:{r.user_id}" if r.user_id is not None else None)
+        if target_key:
+            distinct_targets.add(target_key)
+
+    return {
+        "distinct_accounts": len(distinct_targets),
+        "total_attempts": len(rows),
+        "unknown_account_attempts": unknown_count,
+    }
+
+
 def purge_expired_events(retention_days: Optional[int] = None) -> int:
     """
     Apply retention policy: delete security_events older than retention_days.

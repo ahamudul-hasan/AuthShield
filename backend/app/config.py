@@ -75,6 +75,11 @@ class Config:
     BRUTE_FORCE_WINDOW_MINUTES = int(os.environ.get("BRUTE_FORCE_WINDOW_MINUTES", 5))
     BRUTE_FORCE_POINTS = int(os.environ.get("BRUTE_FORCE_POINTS", 60))
 
+    # Step 4.3: Credential-Stuffing Detection Thresholds
+    CREDENTIAL_STUFFING_THRESHOLD = int(os.environ.get("CREDENTIAL_STUFFING_THRESHOLD", 10))
+    CREDENTIAL_STUFFING_WINDOW_MINUTES = int(os.environ.get("CREDENTIAL_STUFFING_WINDOW_MINUTES", 10))
+    CREDENTIAL_STUFFING_POINTS = int(os.environ.get("CREDENTIAL_STUFFING_POINTS", 40))
+
 
 class DevelopmentConfig(Config):
     """Development environment configuration."""
